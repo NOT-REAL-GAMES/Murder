@@ -1,0 +1,9 @@
+[package]
+name = "murder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = {git = "https://github.com/bevyengine/bevy"}
+bevy_mod_picking = "0.20.1"
+default-args = "1.0.0"
