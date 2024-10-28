@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="512"
+   height="512"
+   viewBox="0 0 512 512"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   sodipodi:docname="murder-logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="px"
+     inkscape:zoom="1.3408112"
+     inkscape:cx="260.6631"
+     inkscape:cy="300.19141"
+     inkscape:window-width="1200"
+     inkscape:window-height="1512"
+     inkscape:window-x="1295"
+     inkscape:window-y="77"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       style="fill:#030004;fill-opacity:1;stroke:#ffffff;stroke-width:7.5;stroke-opacity:1"
+       d="m 71.05083,403.30597 -28.776707,-30.18045 2.105612,-7.72058 23.161741,13.33554 6.316838,-2.80748 C 84.799554,213.24832 137.05956,168.61725 180.42181,98.564028 c 6.58039,23.272902 19.09026,44.004592 7.31918,75.142412 l -36.11392,132.78723 -13.70667,57.39399 61.13439,-17.86914 67.76957,-16.27091 49.87006,53.17199 -70.18995,4.89058 z"
+       id="path1"
+       sodipodi:nodetypes="cccccccccccccc" />
+    <path
+       style="fill:#00000c;fill-opacity:1;stroke:#ffffff;stroke-width:7.5;stroke-opacity:1"
+       d="m 178.805,327.77648 c 12.7384,-36.74844 46.43999,-223.02206 49.8487,-239.619942 l 9.4424,-41.400999 56.14968,10.846153 -20.76621,10.883687 -11.51986,4.23939 C 355.45984,146.14893 443.77992,165.43118 439.49155,369.24401 L 337.44345,229.94385 256.31659,136.23939 242.79316,310.4777 Z"
+       id="path2"
+       sodipodi:nodetypes="ccccccccccc" />
+    <path
+       style="fill:#030000;fill-opacity:1;stroke:#ffffff;stroke-width:7.5;stroke-opacity:1"
+       d="m 275.58755,198.65922 c 51.73567,66.17395 102.67285,130.49537 142.88938,187.80185 l 30.18045,24.56548 -28.12177,30.91986 -3.82743,-25.68868 -60.69776,31.96798 C 272.61847,470.67095 188.74984,485.48939 100.52941,430.67894 L 223.45777,418.8039 370.04784,403.30597 274.56173,287.52992 Z"
+       id="path3"
+       sodipodi:nodetypes="ccccccccccc" />
+  </g>
+</svg>
