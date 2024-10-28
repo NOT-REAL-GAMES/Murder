@@ -1,5 +1,8 @@
 # NOT READY IN ANY SENSE
 
+![murder-logo](https://raw.githubusercontent.com/NOT-REAL-GAMES/Murder/refs/heads/master/murder-logo.svg)
+
+
 # Murder
 ### The word 'Murder' is defined by Oxford Languages as:
 1.  ~~The unlawful premeditated killing of one human being by another.~~
