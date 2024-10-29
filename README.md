@@ -1,6 +1,6 @@
 # NOT READY IN ANY SENSE
 
-![murder-logo](https://raw.githubusercontent.com/NOT-REAL-GAMES/Murder/refs/heads/master/murder-logo.svg)
+![murder-logo](https://raw.githubusercontent.com/NOT-REAL-GAMES/Murder/refs/heads/master/murder-logo-new.svg)
 
 
 # Murder
