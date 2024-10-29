@@ -30,7 +30,7 @@ fn main() {
 }
 
 const FONT_SIZE: f32 = 20.;
-const LINE_HEIGHT: f32 = 21.;
+const LINE_HEIGHT: f32 = 24.;
 
 fn select(
 
