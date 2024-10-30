@@ -11,4 +11,4 @@
 
 ---
 
-Murder is an editor for Bevy, built in Bevy. It is intended to be made in accordance with the design principles laid out ![here](https://bevyengine.github.io/bevy_editor_prototypes/).
+Murder is an editor for Bevy, built in Bevy. It is intended to be made in accordance with the design principles laid out [here](https://bevyengine.github.io/bevy_editor_prototypes/).
