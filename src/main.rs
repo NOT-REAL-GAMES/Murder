@@ -45,10 +45,10 @@ fn select(
     for (interaction, mut color) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
-                *color = Color::srgb(0.5, 0.0, 0.15625).into();
+                *color = Color::srgb(0.29, 0.15, 0.2225).into();
             }
             Interaction::Hovered => {
-                *color = Color::srgb(1.0, 0.0, 0.3125).into();
+                *color = Color::srgb(0.58, 0.3, 0.445).into();
             }
             Interaction::None => {
                 *color = Color::srgb(0.3125, 0.3125, 0.3125).into();
