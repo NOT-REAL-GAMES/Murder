@@ -140,6 +140,28 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     }
                                 });
                         });
+                    
+                    parent
+                        .spawn((Node{
+                            width: Val::Px(32.0),
+                            height: Val::Px(32.0),
+                            right: Val::Px(0.0),
+                            
+                            position_type: PositionType::Relative,
+                            ..default()
+                        },
+                        Button{..default()},
+                        BackgroundColor(Color::srgb(0.3125,0.3125,0.3125))
+                        ))
+                        .observe(|
+                            trigger: Trigger<Pointer<Up>>,
+                            mut commands: Commands
+                        | {
+                            if trigger.event().button == PointerButton::Primary {
+                                println!("yippee :3");
+                                commands.spawn_empty();
+                            }
+                        });
                 });
         });
 }
