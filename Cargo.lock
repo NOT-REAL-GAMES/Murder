@@ -3802,6 +3802,7 @@ dependencies = [
  "bevy",
  "bevy_mod_picking",
  "default-args",
+ "rand",
 ]
 
 [[package]]
