@@ -1,4 +1,4 @@
-# NOT READY IN ANY SENSE
+# NOT READY FOR PRODUCTION USE
 
 ![murder-logo](https://raw.githubusercontent.com/NOT-REAL-GAMES/Murder/refs/heads/master/murder-logo.svg)
 
