@@ -1,4 +1,7 @@
 # NOT READY FOR PRODUCTION USE
+All code shown is presented as proof-of-concept and ***will be*** subject to change.
+
+---
 
 ![murder-logo](https://raw.githubusercontent.com/NOT-REAL-GAMES/Murder/refs/heads/master/murder-logo.svg)
 
