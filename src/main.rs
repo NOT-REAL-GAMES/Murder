@@ -1,22 +1,35 @@
-//! This example illustrates scrolling in Bevy UI.
+//! Murder
 
 use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
         AccessibilityNode,
-    }, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings
+    }, ecs::observer::TriggerTargets, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
 };
-use rand::prelude::*;
 
+//TODO: - project creation window
+//      - project creation process
+//          - write project folder
+//          - read from the folder
+//      - object selection code
+//      - menu for selected object/s
+//      - ability to add components 
+//      - divide project into files
 
-#[derive(Component,Default)]
+#[derive(Component)]
 struct GameObject{
     id: u128,
-    name: String
+    name: String,
+    ent: Entity
 }
 
 #[derive(Component)]
 struct InspectorList{
+
+}
+
+#[derive(Component)]
+struct Selected{
 
 }
 
@@ -27,6 +40,7 @@ struct InspectorListing{
 
 fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
     let nm = &obj.name;
+    let e = obj.ent;
 
     let it = cmd.spawn_empty()
     .insert(Node {
@@ -34,12 +48,15 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
         max_height: Val::Px(LINE_HEIGHT),
         ..default()
     })
-    .observe(|
+    .observe(move |
         trigger: Trigger<Pointer<Click>>,
         mut commands: Commands
     | {
         if trigger.event().button == PointerButton::Primary {
-            println!("selection code to be added soon™")
+            let mut fuck = commands.entity(e);
+            let ffs = fuck.insert(Selected{});
+            let contains =  e.entities().contains(&ffs.id());
+            println!("{contains}");
         }
     })
     .insert(BackgroundColor(Color::srgb(0.3125, 0.3125, 0.3125)))
@@ -232,8 +249,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 let rn = rand::random::<u128>();
                                 let rns = rn.to_string();
                                 println!("Created object: {rns}");
-                                commands.spawn_empty()
-                                .insert(GameObject{id:rn,name:"New Game Object".to_string()});
+                                let mut new = commands.spawn_empty();
+                                
+                                new.insert(GameObject{id:rn,name:"New Game Object".to_string(),ent:new.id()});
                             }
                         });
                 });
