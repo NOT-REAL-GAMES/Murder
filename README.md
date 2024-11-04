@@ -30,4 +30,4 @@ This is because Murder is meant to be an independent foundation that is in prett
 
 ### So is this like the Bevy equivalent to Redot?
 
-This project is completely dependant on Bevy indefinitely as it has been from the start, and always will be. The Murder team commends Godot's decision, and hopes this sets a standard for more game companies to stand for equalitarianism.
+This project is completely dependant on Bevy indefinitely as it has been from the start, and always will be. The Murder team commends Godot's decision, and hopes this sets a standard for more game companies to stand for egalitarianism.
