@@ -110,9 +110,14 @@ fn main() {
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, select)
         .add_systems(Update, update_entities)
+        .add_systems(Update, highlight_selected)
         ;
 
     app.run();
+}
+
+fn highlight_selected(){
+
 }
 
 const FONT_SIZE: f32 = 16.;
