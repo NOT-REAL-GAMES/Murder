@@ -4,16 +4,15 @@ use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
         AccessibilityNode,
-    }, ecs::query::QueryData, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings
+    }, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings
 };
 use rand::prelude::*;
 
 
-//TODO: not permanent, this will be replaced
-//      once i figure out a better solution
-#[derive(Component)]
+#[derive(Component,Default)]
 struct GameObject{
-    id: u128
+    id: u128,
+    name: String
 }
 
 #[derive(Component)]
@@ -26,16 +25,26 @@ struct InspectorListing{
     id: u128
 }
 
-fn add_button(mut cmd: &mut Commands, obj_id: u128) -> Entity {
+fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
+    let nm = &obj.name;
+
     let it = cmd.spawn_empty()
     .insert(Node {
         min_height: Val::Px(LINE_HEIGHT),
         max_height: Val::Px(LINE_HEIGHT),
         ..default()
     })
+    .observe(|
+        trigger: Trigger<Pointer<Click>>,
+        mut commands: Commands
+    | {
+        if trigger.event().button == PointerButton::Primary {
+            println!("selection code to be added soon™")
+        }
+    })
     .insert(BackgroundColor(Color::srgb(0.3125, 0.3125, 0.3125)))
     .insert(Button{})
-    .insert(InspectorListing{id:obj_id})
+    .insert(InspectorListing{id:obj.id})
     .insert(PickingBehavior {
         should_block_lower: false,
         is_hoverable: true,
@@ -44,8 +53,9 @@ fn add_button(mut cmd: &mut Commands, obj_id: u128) -> Entity {
     .with_children(|parent| {
         parent
             .spawn((
-                Text(format!("New Game Object")),
+                Text(format!("{nm}")),
                 TextFont {
+                    font_size: FONT_SIZE,
                     ..default()
                 },
                 Label,
@@ -53,8 +63,13 @@ fn add_button(mut cmd: &mut Commands, obj_id: u128) -> Entity {
                     Role::ListItem,
                 )),
             ))
+            .insert(Node{
+                align_self: AlignSelf::Center,
+                ..default()
+            })
             .insert(PickingBehavior {
                 should_block_lower: false,
+                is_hoverable: false,
                 ..default()
             });
         })
@@ -83,7 +98,7 @@ fn main() {
     app.run();
 }
 
-const FONT_SIZE: f32 = 20.;
+const FONT_SIZE: f32 = 16.;
 const LINE_HEIGHT: f32 = 24.;
 
 fn select(
@@ -120,7 +135,6 @@ fn update_entities(
     mut i: Query<(Entity), With<InspectorList>>,
     mut tq: Query<(&GameObject), With<GameObject>>
 ){
-    let mut bla = 0;
 
     for(child, ent) in iq.iter(){
         let mut found = false;
@@ -142,7 +156,7 @@ fn update_entities(
             }
         }
         if !found {
-            cmd.entity(i.single()).add_child(add_button(&mut cmd2,t.id));
+            cmd.entity(i.single()).add_child(add_button(&mut cmd2,t));
         }
     }
 }
@@ -188,7 +202,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                         flex_direction: FlexDirection::Column,
                                         align_self: AlignSelf::Stretch,
                                         height: Val::Vh(50.),
-                                        overflow: Overflow::scroll_y(), // n.b.
+                                        overflow: Overflow{
+                                            x: OverflowAxis::Clip, 
+                                            y: OverflowAxis::Scroll},
                                         ..default()
                                     },
                                     BackgroundColor(Color::srgb(0.10, 0.10, 0.10)),
@@ -209,13 +225,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         BackgroundColor(Color::srgb(0.3125,0.3125,0.3125))
                         ))
                         .observe(|
-                            trigger: Trigger<Pointer<Up>>,
+                            trigger: Trigger<Pointer<Click>>,
                             mut commands: Commands
                         | {
                             if trigger.event().button == PointerButton::Primary {
                                 let rn = rand::random::<u128>();
+                                let rns = rn.to_string();
+                                println!("Created object: {rns}");
                                 commands.spawn_empty()
-                                .insert(GameObject{id:rn});
+                                .insert(GameObject{id:rn,name:"New Game Object".to_string()});
                             }
                         });
                 });
