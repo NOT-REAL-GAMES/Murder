@@ -26,7 +26,9 @@ It is intended to be made in accordance with the design principles laid out in [
 
 Short answer: *very* unlikely on my watch.
 
-This is because Murder is meant to be an independent foundation that is in pretty much every way complementary to Bevy, yet remains a separate project for a single-executable game engine that is designed to be as accessible as possible, and as such, it's in the best interest of all parties involved it stays separate from the registry, so as to give the impression that the end product of the game engine is the executable produced by the framework, rather than the framework itself.
+This is because Murder is meant to be an independent foundation that is in pretty much every way complementary to Bevy, yet remains a separate project for a single-executable game engine that is designed to be as accessible as possible.
+
+As such, we believe it's in the best interest of all parties involved that it stays separate from the registry, so as to give the impression that the end product of the game engine is the executable produced by the framework, rather than the framework itself.
 
 ### So is this like the Bevy equivalent to Redot?
 
