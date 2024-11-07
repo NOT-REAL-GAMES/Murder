@@ -2,8 +2,6 @@
 
 use std::any::*;
 
-
-use bevy::render::MainWorld;
 use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
@@ -162,7 +160,6 @@ fn highlight(
     mut q: Query<(&mut BackgroundColor), With<Selected>>,
 
 ){
-    let mut world = MainWorld::default();
 
     for (interaction, mut color) in &mut interaction_query {
         match *interaction {
