@@ -183,10 +183,6 @@ fn print_type<T>(_: &T) -> &str {
     return (std::any::type_name::<T>());
 }
 
-fn foo<T: fucking>() -> Selected {
-    return Selected{};
-}
-
 //TODO: only update when scene changes
 //      instead of every frame like a moron
 fn update_entities(
