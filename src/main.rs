@@ -48,12 +48,15 @@ fn clear_all_selected(
     mut sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
     mut cmd: Commands,
+    mut ent: Entity
 ) {
     for (mut bg) in btn.iter_mut(){
         bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
     }
     for (e, s) in sel.iter_mut(){
-        cmd.entity(e).remove::<Selected>();
+        if e != ent{
+            cmd.entity(e).remove::<Selected>();
+        }
     }
 
     
@@ -77,25 +80,26 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
         mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
         mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
 
-    | {
+    | {            
+        let mut cnt = false;
+
         if trigger.event().button == PointerButton::Primary {
             let mut fuck = commands.entity(e);
 
             if (!keyboard_input.pressed(KeyCode::ControlLeft) &&
                 !keyboard_input.pressed(KeyCode::ControlRight)) {
                 
-                clear_all_selected(&mut sel, btn, cmd);
+                clear_all_selected(&mut sel, btn, cmd, e);
 
+            } else {
+                for (e, s) in &mut sel{
+                    if e == fuck.id() {
+                        fuck.remove::<Selected>();
+                        cnt = true;
+                    } 
+                }
             }
-
-            let mut cnt = false;
-
-            for (e, s) in &mut sel{
-                if e == fuck.id() {
-                    fuck.remove::<Selected>();
-                    cnt = true;
-                } 
-            }
+            
             if !cnt {
                 let ffs = fuck.insert(Selected{});
             }
