@@ -187,9 +187,6 @@ fn foo<T: fucking>() -> Selected {
     return Selected{};
 }
 
-
-trait fucking {const shit: bool = false;}
-
 //TODO: only update when scene changes
 //      instead of every frame like a moron
 fn update_entities(
