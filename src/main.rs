@@ -215,9 +215,6 @@ fn update_entities(
         }
     }
     for (mut t) in tfq.iter_mut(){
-        impl fucking for Selected {
-            const shit: bool = true;
-        };
         let mut found = false;
         for (child, ent, mut bg) in iq.iter_mut(){
             if(child.id == t.id){
