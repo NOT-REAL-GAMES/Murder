@@ -1,11 +1,13 @@
 //! Murder
 
+use bevy::render::MainWorld;
 use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
         AccessibilityNode,
     }, ecs::observer::TriggerTargets, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
 };
+
 
 //TODO: - project creation window
 //      - project creation process
@@ -16,11 +18,12 @@ use bevy::{
 //      - ability to add components 
 //      - divide project into files
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct GameObject{
     id: u128,
     name: String,
-    ent: Entity
+    ent: Entity,
+    btn: Entity,
 }
 
 #[derive(Component)]
@@ -33,9 +36,9 @@ struct Selected{
 
 }
 
-#[derive(Component)]
+#[derive(Component, Default, Clone)]
 struct InspectorListing{
-    id: u128
+    id: u128,
 }
 
 fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
@@ -89,8 +92,9 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
                 is_hoverable: false,
                 ..default()
             });
-        })
+        })    
     .id();
+    
 
     return it;
 }
@@ -108,30 +112,28 @@ fn main() {
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
-        .add_systems(Update, select)
+        .add_systems(Update, highlight)
         .add_systems(Update, update_entities)
-        .add_systems(Update, highlight_selected)
         ;
 
     app.run();
 }
 
-fn highlight_selected(){
-
-}
-
 const FONT_SIZE: f32 = 16.;
 const LINE_HEIGHT: f32 = 24.;
 
-fn select(
-
+fn highlight(
     mut interaction_query: Query<
         (
             &Interaction,
             &mut BackgroundColor,
         ),
-    (Changed<Interaction>, With<Button>),>
+    (Changed<Interaction>, With<Button>, Without<Selected>)>,
+
+    mut q: Query<(&mut BackgroundColor), With<Selected>>,
+
 ){
+    let mut world = MainWorld::default();
 
     for (interaction, mut color) in &mut interaction_query {
         match *interaction {
@@ -148,19 +150,32 @@ fn select(
     }
 }
 
+fn print_type<T>(_: &T) -> &str { 
+    return (std::any::type_name::<T>());
+}
+
+fn foo<T: fucking>() -> Selected {
+    return Selected{};
+}
+
+
+trait fucking {const shit: bool = false;}
+
 //TODO: only update when scene changes
 //      instead of every frame like a moron
 fn update_entities(
     mut cmd: Commands,
     mut cmd2: Commands,
-    mut iq: Query<(&InspectorListing, Entity), With<InspectorListing>>,
+    mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor), With<InspectorListing>>,
     mut i: Query<(Entity), With<InspectorList>>,
-    mut tq: Query<(&GameObject), With<GameObject>>
+    mut tfq: Query<(&GameObject), With<GameObject>>,
+    mut sel: Query<(Entity), (With<GameObject>, With<Selected>)>
+
 ){
 
-    for(child, ent) in iq.iter(){
+    for(child, ent, mut bg) in iq.iter(){
         let mut found = false;
-        for t in tq.iter(){
+        for (t) in tfq.iter(){
             if(child.id == t.id){
                 found=true;
             }
@@ -170,15 +185,27 @@ fn update_entities(
 
         }
     }
-    for t in tq.iter(){
+    for (mut t) in tfq.iter_mut(){
+        impl fucking for Selected {
+            const shit: bool = true;
+        };
         let mut found = false;
-        for (child, ent) in iq.iter(){
+        for (child, ent, mut bg) in iq.iter_mut(){
             if(child.id == t.id){
                 found = true;
+                for (s) in &mut sel{
+                    if t.ent == s{
+                        println!("WAHOO");
+                        (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
+                    }
+                }
             }
         }
         if !found {
-            cmd.entity(i.single()).add_child(add_button(&mut cmd2,t));
+            
+            let b = add_button(&mut cmd2,t);
+            let mut o = cmd.entity(i.single());
+            let c = o.add_child(b);
         }
     }
 }
@@ -256,7 +283,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 println!("Created object: {rns}");
                                 let mut new = commands.spawn_empty();
                                 
-                                new.insert(GameObject{id:rn,name:"New Game Object".to_string(),ent:new.id()});
+                                new.insert(GameObject{id:rn,name:"New Game Object".to_string(),ent:new.id(),btn:Entity::PLACEHOLDER});
                             }
                         });
                 });
