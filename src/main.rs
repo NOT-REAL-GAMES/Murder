@@ -1,6 +1,7 @@
 //! Murder
 
 use std::any::*;
+use std::borrow::Borrow;
 
 use bevy::{
     a11y::{
@@ -14,7 +15,8 @@ use bevy::{
 //      - project creation process
 //          - write project folder
 //          - read from the folder
-//      - object selection code
+//      - object selection code - WIP
+//      - object deselection code
 //      - menu for selected object/s
 //      - ability to add components 
 //      - divide project into files
@@ -43,7 +45,7 @@ struct InspectorListing{
 }
 
 fn clear_all_selected(
-    mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+    mut sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
     mut cmd: Commands,
 ) {
@@ -81,12 +83,22 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
 
             if (!keyboard_input.pressed(KeyCode::ControlLeft) &&
                 !keyboard_input.pressed(KeyCode::ControlRight)) {
-
-                clear_all_selected(sel, btn, cmd);
+                
+                clear_all_selected(&mut sel, btn, cmd);
 
             }
 
-            let ffs = fuck.insert(Selected{});
+            let mut cnt = false;
+
+            for (e, s) in &mut sel{
+                if e == fuck.id() {
+                    fuck.remove::<Selected>();
+                    cnt = true;
+                } 
+            }
+            if !cnt {
+                let ffs = fuck.insert(Selected{});
+            }
         }
     })
     .insert(BackgroundColor(Color::srgb(0.3125, 0.3125, 0.3125)))
@@ -140,7 +152,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, highlight)
-        .add_systems(Update, update_entities)
+        .add_systems(PostUpdate, update_entities)
         ;
 
     app.run();
