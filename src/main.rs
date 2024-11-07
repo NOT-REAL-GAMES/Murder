@@ -1,5 +1,8 @@
 //! Murder
 
+use std::any::*;
+
+
 use bevy::render::MainWorld;
 use bevy::{
     a11y::{
@@ -41,6 +44,21 @@ struct InspectorListing{
     id: u128,
 }
 
+fn clear_all_selected(
+    mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+    mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+    mut cmd: Commands,
+) {
+    for (mut bg) in btn.iter_mut(){
+        bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
+    }
+    for (e, s) in sel.iter_mut(){
+        cmd.entity(e).remove::<Selected>();
+    }
+
+    
+}
+
 fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
     let nm = &obj.name;
     let e = obj.ent;
@@ -53,13 +71,24 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
     })
     .observe(move |
         trigger: Trigger<Pointer<Click>>,
-        mut commands: Commands
+        mut commands: Commands,
+        mut cmd: Commands,
+        keyboard_input: Res<ButtonInput<KeyCode>>,
+        mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+        mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+
     | {
         if trigger.event().button == PointerButton::Primary {
             let mut fuck = commands.entity(e);
+
+            if (!keyboard_input.pressed(KeyCode::ControlLeft) &&
+                !keyboard_input.pressed(KeyCode::ControlRight)) {
+
+                clear_all_selected(sel, btn, cmd);
+
+            }
+
             let ffs = fuck.insert(Selected{});
-            let contains =  e.entities().contains(&ffs.id());
-            println!("{contains}");
         }
     })
     .insert(BackgroundColor(Color::srgb(0.3125, 0.3125, 0.3125)))
@@ -195,7 +224,6 @@ fn update_entities(
                 found = true;
                 for (s) in &mut sel{
                     if t.ent == s{
-                        println!("WAHOO");
                         (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
                     }
                 }
