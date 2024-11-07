@@ -15,8 +15,11 @@ use bevy::{
 //      - project creation process
 //          - write project folder
 //          - read from the folder
-//      - object selection code - WIP
-//      - object deselection code
+//      - INSPECTOR
+//          - object selection code - WIP
+//          - object deselection code - WIP
+//          - parenting/reordering objects
+//          - renaming objects
 //      - menu for selected object/s
 //      - ability to add components 
 //      - divide project into files
@@ -68,8 +71,8 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
 
     let it = cmd.spawn_empty()
     .insert(Node {
-        min_height: Val::Px(LINE_HEIGHT),
-        max_height: Val::Px(LINE_HEIGHT),
+        min_height: Val::VMin(2.5),
+        max_height: Val::VMin(2.5),
         ..default()
     })
     .observe(move |
@@ -162,7 +165,7 @@ fn main() {
     app.run();
 }
 
-const FONT_SIZE: f32 = 16.;
+const FONT_SIZE: f32 = 12.;
 const LINE_HEIGHT: f32 = 24.;
 
 fn highlight(
@@ -290,8 +293,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     
                     parent
                         .spawn((Node{
-                            width: Val::Px(32.0),
-                            height: Val::Px(32.0),
+                            width: Val::VMin(2.0),
+                            height: Val::VMin(2.0),
                             right: Val::Px(0.0),
                             
                             position_type: PositionType::Relative,
