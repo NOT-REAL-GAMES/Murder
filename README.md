@@ -33,3 +33,7 @@ As such, we believe it's in the best interest of all parties involved that it st
 ### So is this like the Bevy equivalent to Redot?
 
 This project is (and will forever be) completely dependant on Bevy as it has been from the start. The Murder team commends Godot's decision, and hopes this sets a standard for more game companies to stand for egalitarianism, be it internally or societally.
+
+### Are you delusional?
+
+As a matter of fact, I do have delusions of grandeur, but I can assure you it will not affect this project in any way.
