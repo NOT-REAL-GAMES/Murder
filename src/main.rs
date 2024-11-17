@@ -1,13 +1,17 @@
 //! Murder
 
-use std::any::*;
+use std::ptr::null;
+use std::{any::*, hash::Hash};
 use std::borrow::Borrow;
 
+use bevy::color::palettes::css::RED;
+use bevy::ecs::bundle::DynamicBundle;
+use bevy::reflect::List;
 use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
         AccessibilityNode,
-    }, ecs::observer::TriggerTargets, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
+    }, ecs::{archetype::Archetypes, component::Components, observer::TriggerTargets, world::WorldId}, input::mouse::{MouseScrollUnit, MouseWheel}, math::primitives, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
 };
 
 
@@ -38,14 +42,43 @@ struct InspectorList{
 }
 
 #[derive(Component)]
+struct AddComponentButton{
+
+}
+
+#[derive(Component)]
 struct Selected{
 
+}
+
+#[derive(Component)]
+struct Prefab{
+}
+
+fn TestPrefab(
+    mdl: &mut ResMut<Assets<Mesh>>,
+    mat: &mut ResMut<Assets<StandardMaterial>>
+) -> impl Bundle{
+    
+    (
+        Transform{..default()},
+        Mesh3d(mdl.add(Cuboid{half_size: Vec3{x: 1.0, y: 1.0, z:1.0}})),
+        MeshMaterial3d(mat.add(
+            StandardMaterial{
+                base_color:RED.into(),
+                ..default()}))
+    )
 }
 
 #[derive(Component, Default, Clone)]
 struct InspectorListing{
     id: u128,
 }
+
+fn typeid<T: std::any::Any>(_: &T) -> &str {
+    return std::any::type_name::<T>();
+}
+
 
 fn clear_all_selected(
     mut sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
@@ -195,6 +228,8 @@ fn highlight(
     }
 }
 
+
+
 //TODO: only update when scene changes
 //      instead of every frame like a moron
 fn update_entities(
@@ -203,9 +238,17 @@ fn update_entities(
     mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor), With<InspectorListing>>,
     mut i: Query<(Entity), With<InspectorList>>,
     mut tfq: Query<(&GameObject), With<GameObject>>,
-    mut sel: Query<(Entity), (With<GameObject>, With<Selected>)>
+    mut sel: Query<(Entity), (With<GameObject>, With<Selected>)>,
+    mut btn: Query<&mut Visibility, With<AddComponentButton>>
 
 ){
+    for mut v in btn.iter_mut(){
+        if sel.iter().len() > 0 {
+            *v = Visibility::Visible;
+        } else {
+            *v = Visibility::Hidden;
+        }
+    }
 
     for(child, ent, mut bg) in iq.iter(){
         let mut found = false;
@@ -240,9 +283,21 @@ fn update_entities(
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+
+fn setup(
+    mut commands: Commands, 
+    asset_server: Res<AssetServer>, 
+) {
+
+    commands.spawn(
+        DirectionalLight{illuminance:100_000.00,..default()}
+    );
+
     // Camera
-    commands.spawn(Camera3d{..default()});
+    commands.spawn(
+        (Camera3d{..default()},
+        Transform{translation: Vec3 { x: 0.0, y: 0.0, z: 10.0 },..default()}));
 
     // root node
     commands
@@ -264,7 +319,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ..default()
                 })
                 .with_children(|parent| {
-                    // vertical scroll example
+                    // inspector
                     parent
                         .spawn(Node {
                             flex_direction: FlexDirection::Column,
@@ -293,8 +348,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     
                     parent
                         .spawn((Node{
-                            width: Val::VMin(2.0),
-                            height: Val::VMin(2.0),
+                            width: Val::VMin(4.0),
+                            height: Val::VMin(4.0),
                             right: Val::Px(0.0),
                             
                             position_type: PositionType::Relative,
@@ -316,7 +371,48 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 new.insert(GameObject{id:rn,name:"New Game Object".to_string(),ent:new.id(),btn:Entity::PLACEHOLDER});
                             }
                         });
-                });
+                    
+                    parent
+                        .spawn(
+                            (Node{
+                                position_type: PositionType::Absolute,
+                                bottom: Val::Px(16.0),
+                                left: Val::Px(16.0),
+                                width: Val::Auto,
+                                height: Val::Auto,    
+                                ..default()
+                            },
+                            Button{..default()},
+                            BackgroundColor(Color::srgb(0.3125,0.3125,0.3125)),
+                            AddComponentButton{},
+                            Visibility::Hidden 
+                        ))
+                        .with_children(|parent|{
+                            parent.spawn((
+                                Node{..default()},
+                                Text("Add Component".to_string()),
+                                TextFont {
+                                    font_size: 16.0,
+                                    ..default()
+                                },
+                                Label,
+                            )
+                            )
+                            .observe(|
+                                trigger: Trigger<Pointer<Click>>,
+                                mut q: Query<Entity, (With<Selected>,With<GameObject>)>,
+                                mut mdl: ResMut<Assets<Mesh>>,
+                                mut mat: ResMut<Assets<StandardMaterial>>,
+                                mut commands: Commands
+                            | {
+                                if trigger.event().button == PointerButton::Primary {
+                                    for e in q.iter(){
+                                        commands.entity(e).insert(TestPrefab(&mut mdl,&mut mat));
+                                    }
+                                }
+                            });
+                        });
+                    });
         });
 }
 
