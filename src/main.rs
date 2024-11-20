@@ -55,6 +55,7 @@ struct Selected{
 struct Prefab{
 }
 
+//TODO: figure out how to do this shit procedurally
 fn TestPrefab(
     mdl: &mut ResMut<Assets<Mesh>>,
     mat: &mut ResMut<Assets<StandardMaterial>>
@@ -63,10 +64,7 @@ fn TestPrefab(
     (
         Transform{..default()},
         Mesh3d(mdl.add(Cuboid{half_size: Vec3{x: 1.0, y: 1.0, z:1.0}})),
-        MeshMaterial3d(mat.add(
-            StandardMaterial{
-                base_color:RED.into(),
-                ..default()}))
+        MeshMaterial3d(mat.add(StandardMaterial{..default()}))
     )
 }
 
@@ -291,7 +289,7 @@ fn setup(
 ) {
 
     commands.spawn(
-        DirectionalLight{illuminance:100_000.00,..default()}
+        DirectionalLight{illuminance:1_000.00,..default()}
     );
 
     // Camera
