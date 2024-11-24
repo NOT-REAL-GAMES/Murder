@@ -1,18 +1,13 @@
 //! Murder
 
-use std::ptr::null;
-use std::{any::*, hash::Hash};
-use std::borrow::Borrow;
 use rand::*;
 
-use bevy::color::palettes::css::RED;
-use bevy::ecs::bundle::DynamicBundle;
 use bevy::reflect::List;
 use bevy::{
     a11y::{
         accesskit::{NodeBuilder, Role},
         AccessibilityNode,
-    }, ecs::{archetype::Archetypes, component::Components, observer::TriggerTargets, world::WorldId}, input::mouse::{MouseScrollUnit, MouseWheel}, math::primitives, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
+    }, input::mouse::{MouseScrollUnit, MouseWheel}, picking::focus::HoverMap, prelude::*, winit::WinitSettings 
 };
 
 
@@ -93,12 +88,12 @@ fn typeid<T: std::any::Any>(_: &T) -> &str {
 
 
 fn clear_all_selected(
-    mut sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+    sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
     mut cmd: Commands,
-    mut ent: Entity
+    ent: Entity
 ) {
-    for (mut bg) in btn.iter_mut(){
+    for mut bg in btn.iter_mut(){
         bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
     }
     for (e, s) in sel.iter_mut(){
@@ -110,7 +105,7 @@ fn clear_all_selected(
     
 }
 
-fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
+fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
     let nm = &obj.name;
     let e = obj.ent;
 
@@ -123,10 +118,10 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
     .observe(move |
         trigger: Trigger<Pointer<Click>>,
         mut commands: Commands,
-        mut cmd: Commands,
+        cmd: Commands,
         keyboard_input: Res<ButtonInput<KeyCode>>,
         mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
-        mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+        btn: Query<&mut BackgroundColor, With<InspectorListing>>,
 
     | {            
         let mut cnt = false;
@@ -134,8 +129,8 @@ fn add_button(mut cmd: &mut Commands, obj: &GameObject) -> Entity {
         if trigger.event().button == PointerButton::Primary {
             let mut fuck = commands.entity(e);
 
-            if (!keyboard_input.pressed(KeyCode::ControlLeft) &&
-                !keyboard_input.pressed(KeyCode::ControlRight)) {
+            if !keyboard_input.pressed(KeyCode::ControlLeft) &&
+                !keyboard_input.pressed(KeyCode::ControlRight) {
                 
                 clear_all_selected(&mut sel, btn, cmd, e);
 
@@ -221,7 +216,7 @@ fn highlight(
         ),
     (Changed<Interaction>, With<Button>, Without<Selected>)>,
 
-    mut q: Query<(&mut BackgroundColor), With<Selected>>,
+    q: Query<&mut BackgroundColor, With<Selected>>,
 
 ){
 
@@ -248,9 +243,9 @@ fn update_entities(
     mut cmd: Commands,
     mut cmd2: Commands,
     mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor), With<InspectorListing>>,
-    mut i: Query<(Entity), With<InspectorList>>,
-    mut tfq: Query<(&GameObject), With<GameObject>>,
-    mut sel: Query<(Entity), (With<GameObject>, With<Selected>)>,
+    i: Query<Entity, With<InspectorList>>,
+    mut tfq: Query<&GameObject, With<GameObject>>,
+    mut sel: Query<Entity, (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut Visibility, With<AddComponentButton>>
 
 ){
@@ -262,10 +257,10 @@ fn update_entities(
         }
     }
 
-    for(child, ent, mut bg) in iq.iter(){
+    for(child, ent, bg) in iq.iter(){
         let mut found = false;
-        for (t) in tfq.iter(){
-            if(child.id == t.id){
+        for t in tfq.iter(){
+            if child.id == t.id {
                 found=true;
             }
         }
@@ -274,12 +269,12 @@ fn update_entities(
 
         }
     }
-    for (mut t) in tfq.iter_mut(){
+    for t in tfq.iter_mut(){
         let mut found = false;
         for (child, ent, mut bg) in iq.iter_mut(){
-            if(child.id == t.id){
+            if child.id == t.id {
                 found = true;
-                for (s) in &mut sel{
+                for s in &mut sel{
                     if t.ent == s{
                         (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
                     }
@@ -336,7 +331,7 @@ fn setup(
             .observe(|
                     trigger: Trigger<Pointer<Up>>,
                     mut cmd: Commands,
-                    mut ent: Query<(Entity), (With<Flymode>)>
+                    mut ent: Query<Entity, With<Flymode>>
                     |{
                         if trigger.event().button == PointerButton::Secondary {
                             cmd.entity(ent.single_mut()).remove::<Flymode>();
@@ -345,7 +340,7 @@ fn setup(
                 ).observe(| 
                     trigger: Trigger<Pointer<Down>>,
                     mut cmd: Commands,
-                    mut ent: Query<(Entity), (With<FlyArea>)>           
+                    mut ent: Query<Entity, With<FlyArea>>           
                     | {
                         if trigger.event().button == PointerButton::Secondary {
                             cmd.entity(ent.single_mut()).insert(Flymode{});
