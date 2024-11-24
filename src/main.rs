@@ -3,6 +3,7 @@
 use std::ptr::null;
 use std::{any::*, hash::Hash};
 use std::borrow::Borrow;
+use rand::*;
 
 use bevy::color::palettes::css::RED;
 use bevy::ecs::bundle::DynamicBundle;
@@ -52,6 +53,16 @@ struct Selected{
 }
 
 #[derive(Component)]
+struct Flymode{
+
+}
+
+#[derive(Component)]
+struct FlyArea{
+
+}
+
+#[derive(Component)]
 struct Prefab{
 }
 
@@ -63,7 +74,10 @@ fn TestPrefab(
     
     (
         Transform{..default()},
-        Mesh3d(mdl.add(Cuboid{half_size: Vec3{x: 1.0, y: 1.0, z:1.0}})),
+        Mesh3d(mdl.add(Cuboid{half_size: Vec3{
+            x: rand::thread_rng().gen_range(0.0f32..5.0f32), 
+            y: rand::thread_rng().gen_range(0.0f32..5.0f32), 
+            z: rand::thread_rng().gen_range(0.0f32..5.0f32)}})),
         MeshMaterial3d(mat.add(StandardMaterial{..default()}))
     )
 }
@@ -286,6 +300,7 @@ fn update_entities(
 fn setup(
     mut commands: Commands, 
     asset_server: Res<AssetServer>, 
+
 ) {
 
     commands.spawn(
@@ -295,7 +310,7 @@ fn setup(
     // Camera
     commands.spawn(
         (Camera3d{..default()},
-        Transform{translation: Vec3 { x: 0.0, y: 0.0, z: 10.0 },..default()}));
+        Transform{translation: Vec3 { x: 0.0, y: 0.0, z: 25.0 },..default()}));
 
     // root node
     commands
@@ -305,8 +320,38 @@ fn setup(
             flex_direction: FlexDirection::Column,
             ..default()
         })
-        .insert(PickingBehavior::IGNORE)
+        .insert(PickingBehavior{is_hoverable: false, should_block_lower: false})
         .with_children(|parent| {            
+
+            parent.spawn((
+                Node{
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    ..default()
+                },                
+                //BackgroundColor(Color::srgba(1.0, 0.0, 0.3125, 0.33)),
+                FlyArea{}
+            ))        
+            .insert(PickingBehavior{is_hoverable: true, should_block_lower: false})
+            .observe(|
+                    trigger: Trigger<Pointer<Up>>,
+                    mut cmd: Commands,
+                    mut ent: Query<(Entity), (With<Flymode>)>
+                    |{
+                        if trigger.event().button == PointerButton::Secondary {
+                            cmd.entity(ent.single_mut()).remove::<Flymode>();
+                        }
+                    }
+                ).observe(| 
+                    trigger: Trigger<Pointer<Down>>,
+                    mut cmd: Commands,
+                    mut ent: Query<(Entity), (With<FlyArea>)>           
+                    | {
+                        if trigger.event().button == PointerButton::Secondary {
+                            cmd.entity(ent.single_mut()).insert(Flymode{});
+                        }
+                    }
+                );
 
             // container for all other examples
             parent
@@ -314,8 +359,10 @@ fn setup(
                     width: Val::Percent(100.),
                     height: Val::Percent(100.),
                     flex_direction: FlexDirection::Row,
+                    position_type: PositionType::Absolute,
                     ..default()
                 })
+                .insert(PickingBehavior{is_hoverable: true, should_block_lower: false})
                 .with_children(|parent| {
                     // inspector
                     parent
@@ -337,13 +384,15 @@ fn setup(
                                         overflow: Overflow{
                                             x: OverflowAxis::Clip, 
                                             y: OverflowAxis::Scroll},
+                                        
                                         ..default()
                                     },
-                                    BackgroundColor(Color::srgb(0.10, 0.10, 0.10)),
+                                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.33)),
+                                    
                                 ))
                                 .insert(InspectorList{});
                         });
-                    
+
                     parent
                         .spawn((Node{
                             width: Val::VMin(4.0),
@@ -398,7 +447,7 @@ fn setup(
                             )
                             .observe(|
                                 trigger: Trigger<Pointer<Click>>,
-                                mut q: Query<Entity, (With<Selected>,With<GameObject>)>,
+                                q: Query<Entity, (With<Selected>,With<GameObject>)>,
                                 mut mdl: ResMut<Assets<Mesh>>,
                                 mut mat: ResMut<Assets<StandardMaterial>>,
                                 mut commands: Commands
@@ -409,9 +458,12 @@ fn setup(
                                     }
                                 }
                             });
-                        });
-                    });
-        });
+                        }
+                    );
+                }
+            );
+        }
+    );
 }
 
 /// Updates the scroll position of scrollable nodes in response to mouse input
