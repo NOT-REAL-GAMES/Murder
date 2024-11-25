@@ -301,6 +301,10 @@ fn highlight(
 
 //TODO: only update when scene changes
 //      instead of every frame like a moron
+//  -   also figure out how to fix the one
+//      frame where it shows everything
+//      because it makes the whole product
+//      look like the shambled mess it is
 fn update_entities(
     mut cmd: Commands,
     mut cmd2: Commands,
