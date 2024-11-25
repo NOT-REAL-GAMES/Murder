@@ -1,6 +1,7 @@
 //! Murder
 
 use std::borrow::Borrow;
+use std::fmt::Debug;
 use std::ptr::null;
 
 use bevy::ecs::observer::TriggerTargets;
@@ -106,7 +107,6 @@ fn update_nodeless_parents(
 ){
     for (e, go) in pnls.iter_mut(){
         cmd.entity(e).insert(ParentNode{id: go.id, expanded: false});
-        println!("BAZINGA");
     }
 }
 
@@ -187,8 +187,10 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
                                             QueriedInspectorListing{
                                                 id:l.id
                                             }
-                                        );                            
-                                        println!("WEEHEE");
+                                        );
+                                        for s in sel.iter(){
+                                            cmd2.entity(children.get(s.0).unwrap().1).despawn();
+                                        }                            
 
                                     }
 
@@ -319,7 +321,8 @@ fn update_entities(
 
 
 ){
-
+    let ln = sel.iter().len();
+    //println!("{ln}");
     if qd.iter().len() > 0 {
         for (i,e,b,mut v) in iq.iter_mut(){
             let mut found = false;
@@ -375,10 +378,10 @@ fn update_entities(
             }
             else if child.id == t.id {
                 found = true;
-                for s in &mut sel{
-                    if t.ent == s{
-                        (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
-                    }
+            }
+            for s in &mut sel{
+                if t.ent == s && child.id == t.id{
+                    (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
                 }
             }
         }
@@ -530,19 +533,26 @@ fn setup(
                                 println!("Created object: {rns}");
                                 let mut new = commands.spawn_empty();
                                 
-                                new.insert(GameObject{
+                                new.insert((GameObject{
                                     id:rn,
                                     name:"New Game Object".to_string(),
-                                    ent:new.id()})
+                                    ent:new.id()},
+                                    Transform{..default()},
+                                    Visibility::Visible,
+
+                                ))
                                     .with_children(
                                         |parent| {
                                             let mut bla = parent.spawn_empty();
-                                            bla.insert (GameObject{
+                                            bla.insert ((GameObject{
                                                 id:rn2,
                                                 name: "Child Object".to_string(),
                                                 ent: bla.id()
-                                            }
-                                        );
+                                            },
+                                            Transform{..default()},
+                                            Visibility::Visible,
+        
+                                        ));
                                     }
                                 );
                             }
