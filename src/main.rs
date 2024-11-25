@@ -3,6 +3,7 @@
 use std::borrow::Borrow;
 use std::ptr::null;
 
+use bevy::ecs::observer::TriggerTargets;
 use rand::*;
 
 use bevy::reflect::List;
@@ -34,6 +35,8 @@ struct GameObject{
 
 #[derive(Component, Deref, Clone, Copy)]
 struct ParentNode{
+    pub id: u128,
+    #[deref]
     pub expanded: bool,
 }
 
@@ -68,7 +71,7 @@ struct Prefab{
 
 #[derive(Component)]
 struct QueriedInspectorListing{
-
+    id: u128
 }
 
 
@@ -99,16 +102,16 @@ fn typeid<T: std::any::Any>(_: &T) -> &str {
 
 fn update_nodeless_parents(
     mut cmd: Commands,
-    mut pnls: Query<(Entity), (With<GameObject>, Without<ParentNode>)>,
+    mut pnls: Query<(Entity, &GameObject), (With<GameObject>, Without<ParentNode>)>,
 ){
-    for (e) in pnls.iter_mut(){
-        cmd.entity(e).insert(ParentNode{expanded: false});
+    for (e, go) in pnls.iter_mut(){
+        cmd.entity(e).insert(ParentNode{id: go.id, expanded: false});
         println!("BAZINGA");
     }
 }
 
 fn clear_all_selected(
-    sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+    sel: &mut Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
     mut cmd: Commands,
     ent: Entity
@@ -116,7 +119,7 @@ fn clear_all_selected(
     for mut bg in btn.iter_mut(){
         bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
     }
-    for (e, s) in sel.iter_mut(){
+    for (e, s, g) in sel.iter_mut(){
         if e != ent{
             cmd.entity(e).remove::<Selected>();
         }
@@ -139,10 +142,13 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
         trigger: Trigger<Pointer<Click>>,
         mut commands: Commands,
         cmd: Commands,
+        mut cmd2: Commands,
         keyboard_input: Res<ButtonInput<KeyCode>>,
-        mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
+        mut sel: Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>)>,
+        mut children: Query<(&Children, Entity), With<Selected>>,
         btn: Query<&mut BackgroundColor, With<InspectorListing>>,
         pn: Query<(&ParentNode)>,
+        il: Query<&InspectorListing>
 
     | {            
         let mut cnt = false;
@@ -154,9 +160,11 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
                 !keyboard_input.pressed(KeyCode::ControlRight) {
                 
                 clear_all_selected(&mut sel, btn, cmd, e);
+                 
+
 
             } else {
-                for (e, s) in &mut sel{
+                for (e, s, g) in &mut sel{
                     if e == fuck.id() {
                         fuck.remove::<Selected>();
                         cnt = true;
@@ -165,11 +173,39 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
             }
             
             if !cnt {
-                let ffs = fuck.insert(Selected{});
-                let mut bla = pn.get(fuck.id());
-                let mut uw = (*bla.ok().unwrap());
-                uw.expanded = !uw.expanded;
+                if sel.iter().len() == 1 {
+                    for s in &sel{
+                        if fuck.id() == sel.single().0{
+                            let mut bla = pn.get(fuck.id());
+                            let mut uw = (*bla.ok().unwrap());
+                            uw.expanded = true; 
+                            for (c, ent) in children.iter(){
+                                if (sel.single().2.id == uw.id) {
+                                    for ca in c.iter(){
+                                        let l = pn.get(*ca).unwrap();
+                                        cmd2.entity(*ca).insert(
+                                            QueriedInspectorListing{
+                                                id:l.id
+                                            }
+                                        );                            
+                                        println!("WEEHEE");
 
+                                    }
+
+                                }
+                            }
+                            //}    
+                        }
+                        else {
+                            let ffs = fuck.insert(Selected{});
+                        }
+                    }
+                }
+                else {
+                    let ffs = fuck.insert(Selected{});
+                }
+
+                
             }
         }
     })
@@ -220,12 +256,12 @@ fn main() {
             }),
             ..default()
         }))
-        .insert_resource(WinitSettings::desktop_app())
+        //.insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
         .add_systems(PreUpdate, update_nodeless_parents)
         .add_systems(Update, highlight)
-        .add_systems(PostUpdate, update_entities)
+        .add_systems(Update, update_entities)
         ;
 
     app.run();
@@ -268,17 +304,34 @@ fn highlight(
 fn update_entities(
     mut cmd: Commands,
     mut cmd2: Commands,
-    mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor), With<InspectorListing>>,
+    mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor,&mut Visibility), (With<InspectorListing>, Without<AddComponentButton>)>,
     i: Query<Entity, With<InspectorList>>,
     mut tfq: Query<&GameObject, With<GameObject>>,
     mut sel: Query<Entity, (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut Visibility, With<AddComponentButton>>,
     pt: Query<(&Parent, Entity), With<GameObject>>,
     pn: Query<(&ParentNode),With<GameObject>>,
-    mut qd: Query<(&InspectorListing), With<QueriedInspectorListing>>
+    mut qd: Query<(&QueriedInspectorListing), With<GameObject>>
 
 
 ){
+
+    if qd.iter().len() > 0 {
+        for (i,e,b,mut v) in iq.iter_mut(){
+            let mut found = false;
+            for q in qd.iter(){
+                if q.id == i.id{
+                    found = true;
+                }
+            }
+            if !found {
+                if Some(cmd.get_entity(e)).is_some(){
+                    *v = Visibility::Hidden; 
+                }                        
+            }
+        }
+    }
+
     for mut v in btn.iter_mut(){
         if sel.iter().len() > 0 {
             *v = Visibility::Visible;
@@ -287,12 +340,12 @@ fn update_entities(
         }
     }
 
-    for(child, ent, bg) in iq.iter(){
+    for(child, ent, bg, v) in iq.iter(){
         let mut found = false;
         for t in tfq.iter(){
             if qd.iter().len() > 0{
                 for q in &mut qd{
-                    if q == child{
+                    if q.id == child.id{
                         found=true;
                     }
                 }
@@ -308,9 +361,13 @@ fn update_entities(
     }
     for t in tfq.iter_mut(){
         let mut found = false;
-        for (child, ent, mut bg) in iq.iter_mut(){
+        for (child, ent, mut bg, v) in iq.iter_mut(){
             if qd.iter().len() > 0{
-                
+                for q in &mut qd{
+                    if q.id == child.id{
+                        found=true;
+                    }
+                }
             }
             else if child.id == t.id {
                 found = true;
@@ -322,20 +379,27 @@ fn update_entities(
             }
         }
         if !found {
-            let size = pt.iter().len();
-            let mut parented = false;
-            for(parent,ent) in pt.iter(){
-                if t.ent == ent {                
-                    let res = parent.get();
-                    parented = true;                
-                }
-                //TODO: figure out how to use the result here to
-                //      find which parent each child belongs to
-            }
-            if !parented {
+            if qd.iter().len() > 0 {
                 let b = add_button(&mut cmd2,t);
                 let mut o = cmd.entity(i.single());
                 let c = o.add_child(b);
+            } else {
+
+                let size = pt.iter().len();
+                let mut parented = false;
+                for(parent,ent) in pt.iter(){
+                    if t.ent == ent {                
+                        let res = parent.get();
+                        parented = true;                
+                    }
+                    //TODO: figure out how to use the result here to
+                    //      find which parent each child belongs to
+                }
+                if !parented {
+                    let b = add_button(&mut cmd2,t);
+                    let mut o = cmd.entity(i.single());
+                    let c = o.add_child(b);
+                }
             }
         }
     }
@@ -456,6 +520,8 @@ fn setup(
                         | {
                             if trigger.event().button == PointerButton::Primary {
                                 let rn = rand::random::<u128>();
+                                let rn2 = rand::random::<u128>();
+
                                 let rns = rn.to_string();
                                 println!("Created object: {rns}");
                                 let mut new = commands.spawn_empty();
@@ -468,7 +534,7 @@ fn setup(
                                         |parent| {
                                             let mut bla = parent.spawn_empty();
                                             bla.insert (GameObject{
-                                                id:0,
+                                                id:rn2,
                                                 name: "Child Object".to_string(),
                                                 ent: bla.id()
                                             }
