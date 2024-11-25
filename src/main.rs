@@ -1,5 +1,8 @@
 //! Murder
 
+use std::borrow::Borrow;
+use std::ptr::null;
+
 use rand::*;
 
 use bevy::reflect::List;
@@ -16,8 +19,6 @@ use bevy::{
 //          - write project folder
 //          - read from the folder
 //      - INSPECTOR
-//          - object selection code - WIP
-//          - object deselection code - WIP
 //          - parenting/reordering objects
 //          - renaming objects
 //      - menu for selected object/s
@@ -29,7 +30,11 @@ struct GameObject{
     id: u128,
     name: String,
     ent: Entity,
-    btn: Entity,
+}
+
+#[derive(Component, Deref, Clone, Copy)]
+struct ParentNode{
+    pub expanded: bool,
 }
 
 #[derive(Component)]
@@ -60,6 +65,8 @@ struct FlyArea{
 #[derive(Component)]
 struct Prefab{
 }
+
+
 
 //TODO: figure out how to do this shit procedurally
 fn TestPrefab(
@@ -122,6 +129,7 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
         keyboard_input: Res<ButtonInput<KeyCode>>,
         mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
         btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+        pn: Query<(&ParentNode)>
 
     | {            
         let mut cnt = false;
@@ -145,6 +153,10 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
             
             if !cnt {
                 let ffs = fuck.insert(Selected{});
+                let mut bla = pn.get(fuck.id());
+                let mut uw = (*bla.unwrap());
+                uw.expanded = !uw.expanded;
+
             }
         }
     })
@@ -246,7 +258,11 @@ fn update_entities(
     i: Query<Entity, With<InspectorList>>,
     mut tfq: Query<&GameObject, With<GameObject>>,
     mut sel: Query<Entity, (With<GameObject>, With<Selected>)>,
-    mut btn: Query<&mut Visibility, With<AddComponentButton>>
+    mut btn: Query<&mut Visibility, With<AddComponentButton>>,
+    pt: Query<(&Parent, Entity), With<GameObject>>,
+    pn: Query<(&ParentNode),With<GameObject>>,
+
+
 
 ){
     for mut v in btn.iter_mut(){
@@ -282,10 +298,23 @@ fn update_entities(
             }
         }
         if !found {
-            
-            let b = add_button(&mut cmd2,t);
-            let mut o = cmd.entity(i.single());
-            let c = o.add_child(b);
+            let size = pt.iter().len();
+            println!("{size}");
+            let mut parented = false;
+            for(parent,ent) in pt.iter(){
+                if t.ent == ent {                
+                    let res = parent.get();
+                    parented = true;                
+                    println!("{res}");
+                }
+                //TODO: figure out how to use the result here to
+                //      find which parent each child belongs to
+            }
+            if !parented {
+                let b = add_button(&mut cmd2,t);
+                let mut o = cmd.entity(i.single());
+                let c = o.add_child(b);
+            }
         }
     }
 }
@@ -308,8 +337,8 @@ fn setup(
         Transform{translation: Vec3 { x: 0.0, y: 0.0, z: 25.0 },..default()}));
 
     // root node
-    commands
-        .spawn(Node {
+    let world = commands.spawn_empty().id();
+        commands.spawn(Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
@@ -324,7 +353,6 @@ fn setup(
                     height: Val::Percent(100.0),
                     ..default()
                 },                
-                //BackgroundColor(Color::srgba(1.0, 0.0, 0.3125, 0.33)),
                 FlyArea{}
             ))        
             .insert(PickingBehavior{is_hoverable: true, should_block_lower: false})
@@ -410,7 +438,10 @@ fn setup(
                                 println!("Created object: {rns}");
                                 let mut new = commands.spawn_empty();
                                 
-                                new.insert(GameObject{id:rn,name:"New Game Object".to_string(),ent:new.id(),btn:Entity::PLACEHOLDER});
+                                new.insert(GameObject{
+                                    id:rn,
+                                    name:"New Game Object".to_string(),
+                                    ent:new.id()});
                             }
                         });
                     
