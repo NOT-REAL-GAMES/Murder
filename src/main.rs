@@ -66,6 +66,10 @@ struct FlyArea{
 struct Prefab{
 }
 
+#[derive(Component)]
+struct QueriedInspectorListing{
+
+}
 
 
 //TODO: figure out how to do this shit procedurally
@@ -84,7 +88,7 @@ fn TestPrefab(
     )
 }
 
-#[derive(Component, Default, Clone)]
+#[derive(Component, Default, Clone, PartialEq)]
 struct InspectorListing{
     id: u128,
 }
@@ -93,6 +97,15 @@ fn typeid<T: std::any::Any>(_: &T) -> &str {
     return std::any::type_name::<T>();
 }
 
+fn update_nodeless_parents(
+    mut cmd: Commands,
+    mut pnls: Query<(Entity), (With<GameObject>, Without<ParentNode>)>,
+){
+    for (e) in pnls.iter_mut(){
+        cmd.entity(e).insert(ParentNode{expanded: false});
+        println!("BAZINGA");
+    }
+}
 
 fn clear_all_selected(
     sel: &mut Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
@@ -129,7 +142,7 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
         keyboard_input: Res<ButtonInput<KeyCode>>,
         mut sel: Query<(Entity, &Selected), (With<GameObject>, With<Selected>)>,
         btn: Query<&mut BackgroundColor, With<InspectorListing>>,
-        pn: Query<(&ParentNode)>
+        pn: Query<(&ParentNode)>,
 
     | {            
         let mut cnt = false;
@@ -154,7 +167,7 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
             if !cnt {
                 let ffs = fuck.insert(Selected{});
                 let mut bla = pn.get(fuck.id());
-                let mut uw = (*bla.unwrap());
+                let mut uw = (*bla.ok().unwrap());
                 uw.expanded = !uw.expanded;
 
             }
@@ -210,6 +223,7 @@ fn main() {
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
+        .add_systems(PreUpdate, update_nodeless_parents)
         .add_systems(Update, highlight)
         .add_systems(PostUpdate, update_entities)
         ;
@@ -261,7 +275,7 @@ fn update_entities(
     mut btn: Query<&mut Visibility, With<AddComponentButton>>,
     pt: Query<(&Parent, Entity), With<GameObject>>,
     pn: Query<(&ParentNode),With<GameObject>>,
-
+    mut qd: Query<(&InspectorListing), With<QueriedInspectorListing>>
 
 
 ){
@@ -276,7 +290,14 @@ fn update_entities(
     for(child, ent, bg) in iq.iter(){
         let mut found = false;
         for t in tfq.iter(){
-            if child.id == t.id {
+            if qd.iter().len() > 0{
+                for q in &mut qd{
+                    if q == child{
+                        found=true;
+                    }
+                }
+            }
+            else if child.id == t.id {
                 found=true;
             }
         }
@@ -288,7 +309,10 @@ fn update_entities(
     for t in tfq.iter_mut(){
         let mut found = false;
         for (child, ent, mut bg) in iq.iter_mut(){
-            if child.id == t.id {
+            if qd.iter().len() > 0{
+                
+            }
+            else if child.id == t.id {
                 found = true;
                 for s in &mut sel{
                     if t.ent == s{
@@ -299,13 +323,11 @@ fn update_entities(
         }
         if !found {
             let size = pt.iter().len();
-            println!("{size}");
             let mut parented = false;
             for(parent,ent) in pt.iter(){
                 if t.ent == ent {                
                     let res = parent.get();
                     parented = true;                
-                    println!("{res}");
                 }
                 //TODO: figure out how to use the result here to
                 //      find which parent each child belongs to
@@ -441,9 +463,21 @@ fn setup(
                                 new.insert(GameObject{
                                     id:rn,
                                     name:"New Game Object".to_string(),
-                                    ent:new.id()});
+                                    ent:new.id()})
+                                    .with_children(
+                                        |parent| {
+                                            let mut bla = parent.spawn_empty();
+                                            bla.insert (GameObject{
+                                                id:0,
+                                                name: "Child Object".to_string(),
+                                                ent: bla.id()
+                                            }
+                                        );
+                                    }
+                                );
                             }
-                        });
+                        }
+                    );
                     
                     parent
                         .spawn(
