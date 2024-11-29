@@ -4,6 +4,7 @@ use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::ptr::null;
 
+use bevy::ecs::component::ComponentId;
 use bevy::ecs::observer::TriggerTargets;
 use rand::*;
 
@@ -111,14 +112,14 @@ fn update_nodeless_parents(
 }
 
 fn clear_all_selected(
-    sel: &mut Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>)>,
-    mut btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+    mut sel: &mut Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>, Without<InspectorListing>)>,
+    //mut btn: Query<&mut BackgroundColor, (With<InspectorListing>, Without<Selected>)>,
     mut cmd: Commands,
     ent: Entity
 ) {
-    for mut bg in btn.iter_mut(){
-        bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
-    }
+    //for mut bg in btn.iter_mut(){
+    //    bg.0 = Color::srgb(0.3125, 0.3125, 0.3125).into();
+    //}
     for (e, s, g) in sel.iter_mut(){
         if e != ent{
             cmd.entity(e).remove::<Selected>();
@@ -143,10 +144,11 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
         mut commands: Commands,
         cmd: Commands,
         mut cmd2: Commands,
+        w: &World,
         keyboard_input: Res<ButtonInput<KeyCode>>,
-        mut sel: Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>)>,
-        mut children: Query<(&Children, Entity), With<Selected>>,
-        btn: Query<&mut BackgroundColor, With<InspectorListing>>,
+        mut sel: Query<(Entity, &Selected, &GameObject), (With<GameObject>, With<Selected>, Without<InspectorListing>)>,
+        mut children: Query<(&Children, Entity), (With<Selected>, Without<InspectorListing>)>,
+        //btn: Query<&mut BackgroundColor, (With<InspectorListing>, Without<Selected>)>,
         pn: Query<(&ParentNode)>,
         il: Query<&InspectorListing>
 
@@ -159,7 +161,7 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
             if !keyboard_input.pressed(KeyCode::ControlLeft) &&
                 !keyboard_input.pressed(KeyCode::ControlRight) {
                 
-                clear_all_selected(&mut sel, btn, cmd, e);
+                clear_all_selected(&mut sel, cmd, e);
                  
 
 
@@ -189,7 +191,7 @@ fn add_button(cmd: &mut Commands, obj: &GameObject) -> Entity {
                                             }
                                         );
                                         for s in sel.iter(){
-                                            cmd2.entity(children.get(s.0).unwrap().1).despawn();
+                                            cmd2.entity(children.get(s.0).unwrap().1).remove::<Selected>();
                                         }                            
 
                                     }
@@ -299,19 +301,25 @@ fn highlight(
     }
 }
 
+fn clear_inspector(
+    mut q: &mut Query<Entity, With<QueriedInspectorListing>>,
+    mut cmd: &mut Commands,
+){
 
+    for e in q.iter_mut(){
+        (*cmd).entity(e).remove::<InspectorListing>();
+    }
+
+}
 
 //TODO: only update when scene changes
 //      instead of every frame like a moron
-//  -   also figure out how to fix the one
-//      frame where it shows everything
-//      because it makes the whole product
-//      look like the shambled mess it is
 fn update_entities(
     mut cmd: Commands,
     mut cmd2: Commands,
-    mut iq: Query<(&InspectorListing, Entity, &mut BackgroundColor,&mut Visibility), (With<InspectorListing>, Without<AddComponentButton>)>,
-    i: Query<Entity, With<InspectorList>>,
+    mut iq: Query<(&InspectorListing, Entity,&mut Visibility), (With<InspectorListing>, Without<AddComponentButton>, Without<Selected>)>,
+    mut q: Query<Entity, With<InspectorList>>,
+    mut ilq: Query<Entity, With<QueriedInspectorListing>>,
     mut tfq: Query<&GameObject, With<GameObject>>,
     mut sel: Query<Entity, (With<GameObject>, With<Selected>)>,
     mut btn: Query<&mut Visibility, With<AddComponentButton>>,
@@ -321,54 +329,60 @@ fn update_entities(
 
 
 ){
+
     let ln = sel.iter().len();
     //println!("{ln}");
-    if qd.iter().len() > 0 {
-        for (i,e,b,mut v) in iq.iter_mut(){
-            let mut found = false;
+    
+    for (i,e,mut v) in iq.iter_mut(){
+        let mut found = false;
+        if qd.iter().len() > 0 {
+
             for q in qd.iter(){
                 if q.id == i.id{
                     found = true;
                 }
             }
-            if !found {
-                if Some(cmd.get_entity(e)).is_some(){
-                    *v = Visibility::Hidden; 
-                }                        
+        } else {
+            let mut parented = false;
+            for t in tfq.iter(){
+                if t.id == i.id{
+                    for(parent,ent) in pt.iter(){
+                        if t.ent == ent {                
+                            let res = parent.get();
+                            parented = true;                
+                        }
+                        //TODO: figure out how to use the result here to
+                        //      find which parent each child belongs to
+                    }
+    
+                    found = !parented;
+                    if found{
+                        break;
+                    }
+                }
             }
         }
+        if !found {
+            if Some(cmd.get_entity(e)).is_some(){
+                cmd.entity(e).despawn_recursive();
+            }                        
+        }
+        
     }
-
+    
+    
     for mut v in btn.iter_mut(){
         if sel.iter().len() > 0 {
             *v = Visibility::Visible;
         } else {
             *v = Visibility::Hidden;
         }
-    }
+    }    
 
-    for(child, ent, bg, v) in iq.iter(){
-        let mut found = false;
-        for t in tfq.iter(){
-            if qd.iter().len() > 0{
-                for q in &mut qd{
-                    if q.id == child.id{
-                        found=true;
-                    }
-                }
-            }
-            else if child.id == t.id {
-                found=true;
-            }
-        }
-        if !found {
-            cmd.entity(ent).despawn_recursive();
 
-        }
-    }
     for t in tfq.iter_mut(){
         let mut found = false;
-        for (child, ent, mut bg, v) in iq.iter_mut(){
+        for (child, ent, v) in iq.iter_mut(){
             if qd.iter().len() > 0{
                 for q in &mut qd{
                     if q.id == child.id{
@@ -381,15 +395,19 @@ fn update_entities(
             }
             for s in &mut sel{
                 if t.ent == s && child.id == t.id{
-                    (bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
+                    //(bg).0 = Color::srgb(1.0, 0.0, 0.3125).into();
                 }
             }
         }
         if !found {
             if qd.iter().len() > 0 {
-                let b = add_button(&mut cmd2,t);
-                let mut o = cmd.entity(i.single());
-                let c = o.add_child(b);
+                for ql in qd.iter(){
+                    if ql.id == t.id{
+                        let b = add_button(&mut cmd2,t);
+                        let mut o = cmd.entity(q.single());
+                        let c = o.add_child(b);        
+                    }
+                }
             } else {
 
                 let size = pt.iter().len();
@@ -404,12 +422,13 @@ fn update_entities(
                 }
                 if !parented {
                     let b = add_button(&mut cmd2,t);
-                    let mut o = cmd.entity(i.single());
+                    let mut o = cmd.entity(q.single());
                     let c = o.add_child(b);
                 }
             }
         }
     }
+
 }
 
 
@@ -513,9 +532,9 @@ fn setup(
                         .spawn((Node{
                             width: Val::VMin(4.0),
                             height: Val::VMin(4.0),
-                            right: Val::Px(0.0),
+                            left: Val::Vw(25.0),
                             
-                            position_type: PositionType::Relative,
+                            position_type: PositionType::Absolute,
                             ..default()
                         },
                         Button{..default()},
@@ -555,6 +574,35 @@ fn setup(
                                         ));
                                     }
                                 );
+                            }
+                        }
+                    );
+
+                    parent
+                        .spawn((Node{
+                            width: Val::VMin(4.0),
+                            height: Val::VMin(4.0),
+                            left: Val::Vw(25.0),
+                            top: Val::VMin(4.0),
+                            
+                            position_type: PositionType::Absolute,
+                            ..default()
+                        },
+                        Button{..default()},
+                        BackgroundColor(Color::srgb(0.3125,0.3125,0.3125))
+                        ))
+                        .observe(|
+                            trigger: Trigger<Pointer<Click>>,
+                            mut commands: Commands,
+                            mut q: Query<(Entity), With<QueriedInspectorListing>>,
+                        | {
+                            if trigger.event().button == PointerButton::Primary {
+                                
+                                clear_inspector(&mut q, &mut commands);
+
+                                for (e) in q.iter_mut(){
+                                    commands.entity(e).remove::<QueriedInspectorListing>();
+                                }
                             }
                         }
                     );
