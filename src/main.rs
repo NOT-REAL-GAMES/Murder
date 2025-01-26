@@ -31,6 +31,11 @@ struct InspectorList{
 
 }
 
+#[derive(Component)]
+struct Selected{
+
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(
@@ -48,7 +53,8 @@ fn main() {
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
-        .add_systems(Update, update_inspector_list);
+        .add_systems(Update, update_inspector_list)
+        .add_systems(Update, color_selected);
 
     app.run();
 }
@@ -110,15 +116,44 @@ fn add_button(
         InspectorListing{obj:o.clone()}
     )).with_children(|parent|{
         parent.spawn(Text(o.name.clone()));
-    }).observe(move|t:Trigger<Pointer<Click>>,mut cmd:Commands|{
+    }).observe(move|
+        t: Trigger<Pointer<Click>>,
+        kb: Res<ButtonInput<KeyCode>>,
+        s: Query<(Entity, &Selected)>,
+        mut cmd:Commands|{
         if t.event().button == PointerButton::Primary{
-            cmd.entity(obj.ent).despawn_recursive();
+            if !kb.pressed(KeyCode::ControlLeft){
+                for sel in s.iter(){
+                    cmd.entity(sel.0).remove::<Selected>();
+                }
+            }
+            cmd.entity(t.entity()).insert(Selected{});
         }
     }).id();
     commands.entity(il).add_children(&[bla]);
 }
 
-/* parent.spawn(); */
+fn color_selected(
+    mut commands: Commands,
+    il: Query<(Entity, &InspectorListing)>,
+    s: Query<(Entity, &Selected)>
+){
+    for l in il.iter(){
+        commands.entity(l.0).insert(
+            BackgroundColor(
+                Color::srgb(0.4, 0.4, 0.4)
+            )
+        );
+    }
+
+    for sel in s.iter(){
+        commands.entity(sel.0).insert(
+            BackgroundColor(
+                Color::srgb(1.0, 0.0, 0.3125)
+            )
+        );
+    }
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3d{..default()});
@@ -131,7 +166,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             id:rand::random::<u128>()});
     }
     
-
     commands.spawn((
         Node{
             width: Val::Percent(25.0),
