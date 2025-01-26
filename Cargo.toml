@@ -11,5 +11,6 @@ bevy = {git = "https://github.com/bevyengine/bevy"}
 bevy-trait-query = "0.6.0"
 bevy_mod_picking = "0.20.1"
 default-args = "1.0.0"
+lerp = "0.5.0"
 list-modules = "0.1.6"
 rand = "0.8.5"

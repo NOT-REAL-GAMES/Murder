@@ -36,6 +36,12 @@ struct Selected{
 
 }
 
+#[derive(Component, Clone, Copy)]
+struct ScrollLerp{
+    x: f32,
+    y: f32
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(
@@ -50,7 +56,6 @@ fn main() {
             ..default()
         }
     ))
-        .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
@@ -184,24 +189,43 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 overflow: Overflow::scroll_y(),
                 flex_direction: FlexDirection::Column,
                 ..default()},
-            InspectorList{}
+            InspectorList{},
+            ScrollLerp{x:0.0,y:0.0}
         ));
     });
 
 }
 
 /// Updates the scroll position of scrollable nodes in response to mouse input
+/// TODO: make this work for every scrollable
 pub fn update_scroll_position(
+    mut cmd: Commands,
     mut mouse_wheel_events: EventReader<MouseWheel>,
     hover_map: Res<HoverMap>,
-    mut scrolled_node_query: Query<&mut ScrollPosition>,
+    mut scrolled_node_query: Query<&mut ScrollPosition, With<ScrollLerp>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut scr: Query<(Entity, &ScrollLerp)>,
 ) {
+    
+    let mut hovering = false;
+    let mut bla = ScrollLerp { x: 0.0, y: 0.0 };
+
+    for (_pointer, pointer_map) in hover_map.iter() {
+        for (entity, _hit) in pointer_map.iter() {
+            if let Ok(mut scroll_position) = scrolled_node_query.get_mut(*entity) {
+                bla = *((scr.get(*entity)).unwrap().1);
+                hovering = true;
+            }
+        }
+    }
+    
+
+    let (mut dx, mut dy) = (0.0, 0.0);
     for mouse_wheel_event in mouse_wheel_events.read() {
-        let (mut dx, mut dy) = match mouse_wheel_event.unit {
+        (dx,dy) = match mouse_wheel_event.unit {
             MouseScrollUnit::Line => (
-                mouse_wheel_event.x * LINE_HEIGHT,
-                mouse_wheel_event.y * LINE_HEIGHT,
+                mouse_wheel_event.x * 2.0,
+                mouse_wheel_event.y * 2.0,
             ),
             MouseScrollUnit::Pixel => (mouse_wheel_event.x, mouse_wheel_event.y),
         };
@@ -212,15 +236,32 @@ pub fn update_scroll_position(
             std::mem::swap(&mut dx, &mut dy);
         }
 
-        for (_pointer, pointer_map) in hover_map.iter() {
-            for (entity, _hit) in pointer_map.iter() {
-                if let Ok(mut scroll_position) = scrolled_node_query.get_mut(*entity) {
-                    scroll_position.offset_x -= dx;
-                    scroll_position.offset_y -= dy;
-                }
-            }
-        }
     }
+    
+
+    if (dy>0.0 && bla.y<0.0) || (dy<0.0 && bla.y>0.0) {
+        bla.y = 0.0;
+    }
+    if (dx>0.0 && bla.x<0.0) || (dx<0.0 && bla.x>0.0) {
+        bla.x = 0.0;
+    }
+
+    if hovering{
+        bla.x += dx;
+        bla.y += dy;
+    }
+
+    if let Ok(mut scroll_position) = scrolled_node_query.get_mut(scr.single_mut().0) {
+        scroll_position.offset_x -= bla.x;
+        scroll_position.offset_y -= bla.y;
+        
+    }
+        
+    bla.x = bla.x.lerp(0.0,0.01);
+    bla.y = bla.y.lerp(0.0,0.01);
+
+    cmd.entity(scr.single_mut().0).insert(bla);
+    
 }
 
 
