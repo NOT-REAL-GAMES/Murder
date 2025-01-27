@@ -1,8 +1,8 @@
 //! Murder
 
-use std::ptr::null;
+use std::{fs::File, io::Write, ptr::null};
 
-use bevy::{prelude::*, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
+use bevy::{prelude::*, reflect::Array, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
 
 use rand::*;
 
@@ -18,13 +18,24 @@ use bevy::{
 struct GameObject{
     ent: Entity,
     name: String,
-    id: u128
+    id: u32,
+    code: String
 }
 
 #[derive(Component)]
 struct InspectorListing{
     obj: GameObject
 }
+
+#[derive(Component)]
+struct Queried{}
+
+#[derive(Component)]
+struct ParentNode{}
+
+#[derive(Component)]
+struct Root{}
+
 
 #[derive(Component)]
 struct InspectorList{
@@ -59,7 +70,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
-        .add_systems(Update, color_selected);
+        .add_systems(PostUpdate, color_selected);
 
     app.run();
 }
@@ -70,29 +81,62 @@ fn update_inspector_list(
     mut commands: Commands,
     g: Query<&GameObject>,
     i: Query<(Entity, &InspectorListing)>,
-    il: Query<(Entity, &InspectorList)>
+    il: Query<(Entity, &InspectorList)>,
+    ch: Query<(&Children, &GameObject),(With<Queried>)>,
+
 ){
+
+
     for l in i.iter(){
         let mut found = false;
+        let mut child_of_queried = false;
         for o in g.iter(){
             if l.1.obj == *o{
                 found = true;
+                
             }
+            
+            if ch.iter().len() == 1{
+                for qc in ch.single().0.iter(){
+                    if l.1.obj.ent == *qc{
+                        child_of_queried = true;
+                    }
+                }
+            }
+                
         }
         if !found{
             println!("Listing found for GameObject that doesn't exist. Deleting.");
             commands.entity(l.0).despawn_recursive();
         }
+        if !child_of_queried{
+            //is queried?
+                println!("Listing found for child GameObject that isn't queried. Deleting.");
+                commands.entity(l.0).despawn_recursive();    
+        }
     }
 
     for o in g.iter(){
         let mut found = false;
+        let mut child_of_queried = false;
+        let mut fuck: &GameObject;
         for l in i.iter(){
             if l.1.obj == *o{
                 found = true;
+
+            }
+                
+        }
+        if ch.iter().len() == 1{
+
+            for qc in ch.single().0.iter(){
+               if o.ent == *qc{
+                    child_of_queried = true;
+                }
             }
         }
-        if !found {
+
+        if (!found && child_of_queried) {
             println!("GameObject found without corresponding listing. Adding.");
             add_button(&mut commands, o,il.single().0);
         }
@@ -122,11 +166,25 @@ fn add_button(
     )).with_children(|parent|{
         parent.spawn(Text(o.name.clone()));
     }).observe(move|
-        t: Trigger<Pointer<Click>>,
+        t: Trigger<Pointer<Down>>,
         kb: Res<ButtonInput<KeyCode>>,
         s: Query<(Entity, &Selected)>,
+        q: Query<(Entity, &Queried)>,
+        il: Query<&InspectorListing>,
+        go: Query<&GameObject>,
         mut cmd:Commands|{
         if t.event().button == PointerButton::Primary{
+            if s.iter().len() == 1{
+                if s.single().0 == t.entity(){
+                    for sel in s.iter(){
+                        cmd.entity(sel.0).remove::<Selected>();
+                    }
+                    for qr in q.iter(){
+                        cmd.entity(qr.0).remove::<Queried>();
+                    }
+                    cmd.entity(il.get(t.entity()).unwrap().obj.ent).insert(Queried{});
+                }
+            }
             if !kb.pressed(KeyCode::ControlLeft){
                 for sel in s.iter(){
                     cmd.entity(sel.0).remove::<Selected>();
@@ -163,15 +221,38 @@ fn color_selected(
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3d{..default()});
 
-    for i in 1..100{
-        let mut o = commands.spawn_empty();
-        o.insert(GameObject{
-            ent: o.id(),
-            name:i.to_string(),
-            id:rand::random::<u128>()});
-    }
+    let mut root = commands.spawn_empty();
+    root.insert(
+        (GameObject{
+            ent: root.id(),
+            name: "root".to_string(), 
+            id: 0,
+            code: "".to_string()
+        },Queried{},Root{})).with_children(|parent|{
+        for i in 1..100{
+            let mut o = parent.spawn_empty();
+            o.insert(GameObject{
+                ent: o.id(),
+                name:i.to_string(),
+                id:rand::random::<u32>(),
+                code:"".to_string()})
+                .with_children(|parent|{
+                    let mut c = parent.spawn_empty();
+                    c.insert(
+                        GameObject{
+                            ent: c.id(),
+                            name: "fuck".to_string(),
+                            id:rand::random::<u32>(),
+                            code:"".to_string()
+                        }
+                    );
+                }
+            );
+        }
     
-    commands.spawn((
+    });
+    
+    let test = commands.spawn((
         Node{
             width: Val::Percent(25.0),
             height: Val::Percent(50.0),
@@ -192,13 +273,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             InspectorList{},
             ScrollLerp{x:0.0,y:0.0}
         ));
-    });
+    }).id();
 
 }
 
+
+
 /// Updates the scroll position of scrollable nodes in response to mouse input
 /// TODO: make this work for every scrollable
-pub fn update_scroll_position(
+fn update_scroll_position(
     mut cmd: Commands,
     mut mouse_wheel_events: EventReader<MouseWheel>,
     hover_map: Res<HoverMap>,
