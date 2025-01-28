@@ -1,8 +1,8 @@
-//! Murder
+//! Murder: an editor for Bevy made in Bevy
 
 use std::{fs::File, io::Write, ptr::null};
 
-use bevy::{prelude::*, reflect::Array, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
+use bevy::{prelude::*, reflect::Array, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::PrimaryWindow};
 
 use rand::*;
 
@@ -31,7 +31,7 @@ struct InspectorListing{
 struct Queried{}
 
 #[derive(Component)]
-struct ParentNode{}
+struct Showing{}
 
 #[derive(Component)]
 struct Root{}
@@ -67,19 +67,30 @@ fn main() {
             ..default()
         }
     ))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, setup)        
+        .add_systems(Startup, set_window_title)
+
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
-        .add_systems(PostUpdate, color_selected);
+
+        .add_systems(PostUpdate, color_selected)
+        ;
 
     app.run();
 }
 
-const LINE_HEIGHT: f32 = 21.;
+//TODO: add editable component that title is read from
+fn set_window_title(
+    mut window_query: Query<&mut Window, With<PrimaryWindow>>,
+) {
+    if let Ok(mut window) = window_query.get_single_mut() {
+        window.title = "Murder".to_string();
+    } 
+}
 
 fn update_inspector_list(
     mut commands: Commands,
-    g: Query<&GameObject>,
+    g: Query<&GameObject, Without<Showing>>,
     i: Query<(Entity, &InspectorListing)>,
     il: Query<(Entity, &InspectorList)>,
     ch: Query<(&Children, &GameObject),(With<Queried>)>,
@@ -90,21 +101,25 @@ fn update_inspector_list(
     for l in i.iter(){
         let mut found = false;
         let mut child_of_queried = false;
-        for o in g.iter(){
+        
+        if Some(g.get(l.1.obj.ent)).is_some(){
+            found = true;
+        }
+
+        /*for o in g.iter(){
             if l.1.obj == *o{
                 found = true;
-                
             }
-            
-            if ch.iter().len() == 1{
-                for qc in ch.single().0.iter(){
-                    if l.1.obj.ent == *qc{
-                        child_of_queried = true;
-                    }
+        }*/
+
+        if ch.iter().len() == 1{
+            for qc in ch.single().0.iter(){
+                if l.1.obj.ent == *qc{
+                    child_of_queried = true;
                 }
             }
-                
         }
+
         if !found{
             println!("Listing found for GameObject that doesn't exist. Deleting.");
             commands.entity(l.0).despawn_recursive();
@@ -120,6 +135,7 @@ fn update_inspector_list(
         let mut found = false;
         let mut child_of_queried = false;
         let mut fuck: &GameObject;
+
         for l in i.iter(){
             if l.1.obj == *o{
                 found = true;
@@ -129,6 +145,7 @@ fn update_inspector_list(
         }
         if ch.iter().len() == 1{
 
+            
             for qc in ch.single().0.iter(){
                if o.ent == *qc{
                     child_of_queried = true;
@@ -139,6 +156,7 @@ fn update_inspector_list(
         if (!found && child_of_queried) {
             println!("GameObject found without corresponding listing. Adding.");
             add_button(&mut commands, o,il.single().0);
+            commands.entity(o.ent).insert(Showing{});
         }
     }
 }
@@ -171,7 +189,6 @@ fn add_button(
         s: Query<(Entity, &Selected)>,
         q: Query<(Entity, &Queried)>,
         il: Query<&InspectorListing>,
-        go: Query<&GameObject>,
         mut cmd:Commands|{
         if t.event().button == PointerButton::Primary{
             if s.iter().len() == 1{
@@ -198,14 +215,20 @@ fn add_button(
 
 fn color_selected(
     mut commands: Commands,
-    il: Query<(Entity, &InspectorListing)>,
+    il: Query<(Entity, &Interaction, &InspectorListing)>,
     s: Query<(Entity, &Selected)>
 ){
+
     for l in il.iter(){
+
+        let mut col: Color = match l.1 {
+            Interaction::None => (Color::srgb(0.4, 0.4, 0.4)) ,
+            Interaction::Hovered => (Color::srgb(0.6, 0.4, 0.4)),
+            Interaction::Pressed => (Color::srgb(0.3, 0.15, 0.15))
+        }; 
+
         commands.entity(l.0).insert(
-            BackgroundColor(
-                Color::srgb(0.4, 0.4, 0.4)
-            )
+            BackgroundColor(col)
         );
     }
 
@@ -218,6 +241,8 @@ fn color_selected(
     }
 }
 
+
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3d{..default()});
 
@@ -229,7 +254,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             id: 0,
             code: "".to_string()
         },Queried{},Root{})).with_children(|parent|{
-        for i in 1..100{
+        for i in 1..1000{
             let mut o = parent.spawn_empty();
             o.insert(GameObject{
                 ent: o.id(),
@@ -241,7 +266,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     c.insert(
                         GameObject{
                             ent: c.id(),
-                            name: "fuck".to_string(),
+                            name: (i.to_string() + "'s child").to_string(),
                             id:rand::random::<u32>(),
                             code:"".to_string()
                         }
@@ -320,18 +345,18 @@ fn update_scroll_position(
         }
 
     }
-    
-
-    if (dy>0.0 && bla.y<0.0) || (dy<0.0 && bla.y>0.0) {
-        bla.y = 0.0;
-    }
-    if (dx>0.0 && bla.x<0.0) || (dx<0.0 && bla.x>0.0) {
-        bla.x = 0.0;
-    }
 
     if hovering{
-        bla.x += dx;
-        bla.y += dy;
+        if (dy>0.0 && bla.y<0.0) || (dy<0.0 && bla.y>0.0) {
+            bla.y = 0.0;
+        } else {
+            bla.y += dy;
+        }
+        if (dx>0.0 && bla.x<0.0) || (dx<0.0 && bla.x>0.0) {
+            bla.x = 0.0;
+        } else {
+            bla.x += dx;
+        }
     }
 
     if let Ok(mut scroll_position) = scrolled_node_query.get_mut(scr.single_mut().0) {
