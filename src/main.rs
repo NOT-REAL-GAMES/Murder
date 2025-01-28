@@ -231,7 +231,7 @@ fn add_button(
 
 fn color_selected(
     mut commands: Commands,
-    il: Query<(Entity, &Interaction, &InspectorListing)>,
+    il: Query<(Entity, &Interaction, &Button)>,
     s: Query<(Entity, &Selected)>
 ){
 
@@ -262,14 +262,15 @@ fn color_selected(
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3d{..default()});
 
-    let mut root = commands.spawn_empty();
-    root.insert(
-        (GameObject{
-            ent: root.id(),
-            name: "root".to_string(), 
-            id: 0,
-            code: "".to_string()
-        },Queried{},Root{})).with_children(|parent|{
+    let mut root = commands.spawn_empty().id();
+    commands.entity(root).insert(
+    (GameObject{
+                ent: root,
+                name: "root".to_string(), 
+                id: 0,
+                code: "".to_string()
+            },Queried{},Root{})
+        ).with_children(|parent|{
         for i in 1..1000{
             let mut o = parent.spawn_empty();
             o.insert(GameObject{
@@ -291,6 +292,33 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             );
         }
     });
+
+    let add_gameobject = commands.spawn(
+        (        
+            BackgroundColor(
+                Color::srgb(0.33, 0.33, 0.33)
+            ),
+
+            Node{
+                right: Val::Px(0.0),
+                width: Val::Px(16.0),
+                height: Val::Px(16.0),
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+
+            Button{},
+    )).observe(move|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
+        | {
+        let mut new = cmd.spawn_empty().id(); 
+        cmd.entity(new).insert((GameObject{
+            ent: new,
+            name: "YIPPEE".to_string(),
+            id:rand::random::<u32>(),
+            code:"".to_string()
+        }));
+        cmd.entity(queried.single_mut().0).add_child(new);
+    }).id();
     
     let test = commands.spawn((
         Node{
