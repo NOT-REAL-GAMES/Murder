@@ -74,6 +74,9 @@ fn main() {
         .add_systems(Update, update_inspector_list)
 
         .add_systems(PostUpdate, color_selected)
+        
+        .add_systems(Last, delete_objects)
+
         ;
 
     app.run();
@@ -86,6 +89,19 @@ fn set_window_title(
     if let Ok(mut window) = window_query.get_single_mut() {
         window.title = "Murder".to_string();
     } 
+}
+
+fn delete_objects(
+    mut commands: Commands,
+    kb: Res<ButtonInput<KeyCode>>,
+    s: Query<(&InspectorListing, &Selected)>,
+
+) {
+    if kb.pressed(KeyCode::Delete){
+        for sel in s.iter(){
+            commands.entity(sel.0.obj.ent).despawn_recursive();
+        }
+    }
 }
 
 fn update_inspector_list(
@@ -274,7 +290,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 }
             );
         }
-    
     });
     
     let test = commands.spawn((
