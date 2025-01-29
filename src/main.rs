@@ -70,13 +70,15 @@ fn main() {
         .add_systems(Startup, setup)        
         .add_systems(Startup, set_window_title)
 
+        .add_systems(PreUpdate, fallback_to_root)
+
+
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
 
         .add_systems(PostUpdate, color_selected)
         
         .add_systems(Last, delete_objects)
-
         ;
 
     app.run();
@@ -257,7 +259,16 @@ fn color_selected(
     }
 }
 
-
+fn fallback_to_root(
+    mut cmd: Commands,
+    mut root: Query<(Entity,&Root)>,
+    queried: Query<&Queried>
+){
+    if queried.iter().len() == 0{
+        println!("No queried object found. Falling back to root.");
+        cmd.entity(root.single_mut().0).insert(Queried{});
+    }
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3d{..default()});
@@ -271,26 +282,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 code: "".to_string()
             },Queried{},Root{})
         ).with_children(|parent|{
-        for i in 1..1000{
-            let mut o = parent.spawn_empty();
-            o.insert(GameObject{
-                ent: o.id(),
-                name:i.to_string(),
-                id:rand::random::<u32>(),
-                code:"".to_string()})
-                .with_children(|parent|{
-                    let mut c = parent.spawn_empty();
-                    c.insert(
-                        GameObject{
-                            ent: c.id(),
-                            name: (i.to_string() + "'s child").to_string(),
-                            id:rand::random::<u32>(),
-                            code:"".to_string()
-                        }
-                    );
-                }
-            );
-        }
+        
     });
 
     let add_gameobject = commands.spawn(
@@ -319,6 +311,32 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         }));
         cmd.entity(queried.single_mut().0).add_child(new);
     }).id();
+
+    let navigate_to_root = commands.spawn(
+        (        
+            BackgroundColor(
+                Color::srgb(0.33, 0.33, 0.33)
+            ),
+
+            Node{
+                right: Val::Px(0.0),
+                top: Val::Px(16.0),
+                width: Val::Px(16.0),
+                height: Val::Px(16.0),
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+
+            Button{},
+    )).observe(move|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>,mut showing:Query<(Entity,&Showing)>
+        | {
+            for q in queried.iter(){
+                cmd.entity(q.0).remove::<(Queried)>();
+            }for q in showing.iter(){
+                cmd.entity(q.0).remove::<(Showing)>();
+            }
+    }).id();
+
     
     let test = commands.spawn((
         Node{
