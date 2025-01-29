@@ -1,17 +1,12 @@
 //! Murder: an editor for Bevy made in Bevy
 
-use std::{fs::File, io::Write, ptr::null};
 
-use bevy::{prelude::*, reflect::Array, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::PrimaryWindow};
+use bevy::{prelude::*, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::PrimaryWindow};
 
-use rand::*;
 
-use accesskit::{Node as Accessible, Role};
 use bevy::{
-    a11y::AccessibilityNode,
     input::mouse::{MouseScrollUnit, MouseWheel},
     picking::focus::HoverMap,
-    winit::WinitSettings,
 };
 
 #[derive(Component, PartialEq, Clone)]
@@ -111,7 +106,7 @@ fn update_inspector_list(
     g: Query<&GameObject, Without<Showing>>,
     i: Query<(Entity, &InspectorListing)>,
     il: Query<(Entity, &InspectorList)>,
-    ch: Query<(&Children, &GameObject),(With<Queried>)>,
+    ch: Query<(&Children, &GameObject),With<Queried>>,
 
 ){
 
@@ -152,7 +147,6 @@ fn update_inspector_list(
     for o in g.iter(){
         let mut found = false;
         let mut child_of_queried = false;
-        let mut fuck: &GameObject;
 
         for l in i.iter(){
             if l.1.obj == *o{
@@ -171,7 +165,7 @@ fn update_inspector_list(
             }
         }
 
-        if (!found && child_of_queried) {
+        if !found && child_of_queried {
             println!("GameObject found without corresponding listing. Adding.");
             add_button(&mut commands, o,il.single().0);
             commands.entity(o.ent).insert(Showing{});
@@ -184,8 +178,7 @@ fn add_button(
     o: &GameObject,
     il: Entity
 ){
-    let obj = o.clone();
-    let mut bla = commands.spawn((
+    let bla = commands.spawn((
         Node{
             min_width: Val::Percent(100.0),
             min_height: Val::Px(24.0),
@@ -239,10 +232,10 @@ fn color_selected(
 
     for l in il.iter(){
 
-        let mut col: Color = match l.1 {
-            Interaction::None => (Color::srgb(0.4, 0.4, 0.4)) ,
-            Interaction::Hovered => (Color::srgb(0.6, 0.4, 0.4)),
-            Interaction::Pressed => (Color::srgb(0.3, 0.15, 0.15))
+        let col: Color = match l.1 {
+            Interaction::None => Color::srgb(0.4, 0.4, 0.4) ,
+            Interaction::Hovered => Color::srgb(0.6, 0.4, 0.4),
+            Interaction::Pressed => Color::srgb(0.3, 0.15, 0.15)
         }; 
 
         commands.entity(l.0).insert(
@@ -269,11 +262,11 @@ fn fallback_to_root(
         cmd.entity(root.single_mut().0).insert(Queried{});
     }
 }
-
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+//asset_server: Res<AssetServer>
+fn setup(mut commands: Commands) {
     commands.spawn(Camera3d{..default()});
 
-    let mut root = commands.spawn_empty().id();
+    let root = commands.spawn_empty().id();
     commands.entity(root).insert(
     (GameObject{
                 ent: root,
@@ -281,11 +274,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 id: 0,
                 code: "".to_string()
             },Queried{},Root{})
-        ).with_children(|parent|{
-        
-    });
+        );
 
-    let add_gameobject = commands.spawn(
+    commands.spawn(
         (        
             BackgroundColor(
                 Color::srgb(0.33, 0.33, 0.33)
@@ -300,19 +291,19 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
 
             Button{},
-    )).observe(move|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
+    )).observe(|_t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
         | {
-        let mut new = cmd.spawn_empty().id(); 
-        cmd.entity(new).insert((GameObject{
+        let new = cmd.spawn_empty().id(); 
+        cmd.entity(new).insert(GameObject{
             ent: new,
             name: "YIPPEE".to_string(),
             id:rand::random::<u32>(),
             code:"".to_string()
-        }));
+        });
         cmd.entity(queried.single_mut().0).add_child(new);
-    }).id();
+    });
 
-    let navigate_to_root = commands.spawn(
+    commands.spawn(
         (        
             BackgroundColor(
                 Color::srgb(0.33, 0.33, 0.33)
@@ -328,17 +319,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
 
             Button{},
-    )).observe(move|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>,mut showing:Query<(Entity,&Showing)>
+    )).observe(move|
+        _t: Trigger<Pointer<Down>>,
+        queried:Query<(Entity,&Queried)>,
+        showing:Query<(Entity,&Showing)>,
+        mut cmd: Commands,
         | {
             for q in queried.iter(){
-                cmd.entity(q.0).remove::<(Queried)>();
+                cmd.entity(q.0).remove::<Queried>();
             }for q in showing.iter(){
-                cmd.entity(q.0).remove::<(Showing)>();
+                cmd.entity(q.0).remove::<Showing>();
             }
-    }).id();
+    });
 
     
-    let test = commands.spawn((
+    commands.spawn((
         Node{
             width: Val::Percent(25.0),
             height: Val::Percent(50.0),
@@ -359,7 +354,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             InspectorList{},
             ScrollLerp{x:0.0,y:0.0}
         ));
-    }).id();
+    });
 
 }
 
@@ -381,7 +376,7 @@ fn update_scroll_position(
 
     for (_pointer, pointer_map) in hover_map.iter() {
         for (entity, _hit) in pointer_map.iter() {
-            if let Ok(mut scroll_position) = scrolled_node_query.get_mut(*entity) {
+            if let Ok(_scroll_position) = scrolled_node_query.get_mut(*entity) {
                 bla = *((scr.get(*entity)).unwrap().1);
                 hovering = true;
             }
