@@ -1,12 +1,16 @@
 //! Murder: an editor for Bevy made in Bevy
 
 
-use bevy::{prelude::*, render::{settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::PrimaryWindow};
+use std::f32::consts::FRAC_PI_2;
+use bevy::render::render_resource::AsBindGroup;
+
+use bevy::{asset::AssetLoader, core_pipeline::{prepass::*,experimental::taa::*, *}, prelude::*, render::{render_resource::{TextureViewDescriptor, TextureViewDimension}, settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::{PrimaryWindow, WindowResolution}};
 
 
 use bevy::{
-    input::mouse::{MouseScrollUnit, MouseWheel},
+    input::mouse::{MouseScrollUnit, MouseWheel, AccumulatedMouseMotion},
     picking::focus::HoverMap,
+    pbr::*,pbr::experimental::meshlet::*,
 };
 
 #[derive(Component, PartialEq, Clone)]
@@ -31,6 +35,8 @@ struct Showing{}
 #[derive(Component)]
 struct Root{}
 
+#[derive(Component)]
+struct World{}
 
 #[derive(Component)]
 struct InspectorList{
@@ -61,12 +67,27 @@ fn main() {
                 ),
             ..default()
         }
-    ))
-        .add_systems(Startup, setup)        
+    ).set(        
+        WindowPlugin{
+        primary_window: Some(Window{resolution:
+            WindowResolution::new(1280.0,720.0).with_scale_factor_override(0.5),
+            ..default()}),
+        ..default()
+    }
+    )).add_plugins((
+        TemporalAntiAliasPlugin,
+        MeshletPlugin{cluster_buffer_slots: 1048576},
+    ))  
+        // RESOURCES
+        .insert_resource(DirectionalLightShadowMap { size: 4096 })
+        .insert_resource(DefaultOpaqueRendererMethod::deferred())
+        
+        // SYSTEMS
+        .add_systems(PreStartup, setup)        
         .add_systems(Startup, set_window_title)
 
         .add_systems(PreUpdate, fallback_to_root)
-
+        .add_systems(PreUpdate, devcam_look)
 
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
@@ -78,6 +99,7 @@ fn main() {
 
     app.run();
 }
+
 
 //TODO: add editable component that title is read from
 fn set_window_title(
@@ -118,12 +140,6 @@ fn update_inspector_list(
         if Some(g.get(l.1.obj.ent)).is_some(){
             found = true;
         }
-
-        /*for o in g.iter(){
-            if l.1.obj == *o{
-                found = true;
-            }
-        }*/
 
         if ch.iter().len() == 1{
             for qc in ch.single().0.iter(){
@@ -226,16 +242,16 @@ fn add_button(
 
 fn color_selected(
     mut commands: Commands,
-    il: Query<(Entity, &Interaction, &Button)>,
+    il: Query<(Entity, &Interaction, &Button, &BackgroundColor)>,
     s: Query<(Entity, &Selected)>
 ){
 
     for l in il.iter(){
 
         let col: Color = match l.1 {
-            Interaction::None => Color::srgb(0.4, 0.4, 0.4) ,
-            Interaction::Hovered => Color::srgb(0.6, 0.4, 0.4),
-            Interaction::Pressed => Color::srgb(0.3, 0.15, 0.15)
+            Interaction::None => Color::srgba(0.4, 0.4, 0.4, l.3.0.alpha()) ,
+            Interaction::Hovered => Color::srgba(0.6, 0.4, 0.4, l.3.0.alpha()),
+            Interaction::Pressed => Color::srgba(0.3, 0.15, 0.15, l.3.0.alpha())
         }; 
 
         commands.entity(l.0).insert(
@@ -262,9 +278,82 @@ fn fallback_to_root(
         cmd.entity(root.single_mut().0).insert(Queried{});
     }
 }
-//asset_server: Res<AssetServer>
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera3d{..default()});
+
+fn devcam_look(
+    mut tf: Query<(&Transform, &Camera3d, Entity)>,
+    cum: Res<AccumulatedMouseMotion>,
+    kb: Res<ButtonInput<KeyCode>>,
+    mut cmd: Commands
+){
+
+    let t = tf.single().0;
+
+    let mut pos = t.translation;
+    let rot =  t.rotation.to_euler(EulerRot::YXZ);
+
+    let mult = 1000.0;
+
+    if kb.pressed(KeyCode::KeyW){
+        pos += t.forward() * mult;
+    }
+
+    if kb.pressed(KeyCode::KeyS){
+        pos += t.back() * mult;
+    }
+
+    if kb.pressed(KeyCode::KeyA){
+        pos += t.left() * mult;
+    }
+
+    if kb.pressed(KeyCode::KeyD){
+        pos += t.right() * mult;
+    }
+    
+    cmd.entity(tf.single_mut().2).insert(Transform{
+        translation: pos,
+        rotation: Quat::from_euler(EulerRot::YXZ, 
+            rot.0-cum.delta.x*0.01, 
+            (rot.1-cum.delta.y*0.01).clamp(
+                -(FRAC_PI_2 - 0.01),
+                FRAC_PI_2 - 0.01),
+            rot.2),
+        ..default()
+    });
+}
+
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+
+    let config: CascadeShadowConfig = CascadeShadowConfigBuilder {
+        maximum_distance: 1000000.0,
+        first_cascade_far_bound: 10000.0,
+        num_cascades: 4,
+        ..default()
+    }.into();
+    
+    let cam = commands.spawn( (
+        Camera3d{..default()},
+        Msaa::Off,        
+        ShadowFilteringMethod::Temporal,
+        //TemporalAntiAliasing{reset:false},
+        DepthPrepass,
+        MotionVectorPrepass,
+        DeferredPrepass,
+    )).id();
+    let sun = commands.spawn((
+
+        DirectionalLight{
+            shadow_depth_bias: 0.02,
+            shadow_normal_bias: 1.8,
+            illuminance: 25_000.0,
+            shadows_enabled: true,
+            soft_shadow_size: Some(10.0),
+            color: Color::srgb(1.0, 0.0, 0.3125) },
+        Transform{
+            rotation: Quat::from_euler(
+                EulerRot::XYZ, 
+                -45.0, 70.0, 0.0),
+            ..default()
+        },config)).id();
 
     let root = commands.spawn_empty().id();
     commands.entity(root).insert(
@@ -275,6 +364,18 @@ fn setup(mut commands: Commands) {
                 code: "".to_string()
             },Queried{},Root{})
         );
+
+    commands.insert_resource(AmbientLight{
+        color: Color::srgb(0.2, 0.2, 0.33), brightness: 1000.0
+    });
+
+    commands.insert_resource(ClearColor(
+        Color::srgb(
+            0.1,
+            0.33,
+            0.6
+        )
+    ));
 
     commands.spawn(
         (        

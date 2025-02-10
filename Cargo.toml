@@ -1,13 +1,14 @@
 [package]
 name = "murder"
 version = "0.0.1"
+authors = ["Arbiter Waldorff <rbwldrf@gmail.com>"]
 edition = "2021"
 
 [dependencies]
 accesskit = "0.17.1"
 avian2d = { git = "https://github.com/Jondolf/avian", branch = "main" }
 avian3d = { git = "https://github.com/Jondolf/avian", branch = "main" }
-bevy = {git = "https://github.com/bevyengine/bevy"}
+bevy = {git = "https://github.com/bevyengine/bevy", features = ["meshlet","meshlet_processor"]}
 bevy-trait-query = "0.6.0"
 bevy_mod_picking = "0.20.1"
 default-args = "1.0.0"
