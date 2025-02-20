@@ -13,6 +13,11 @@ use bevy::{
     pbr::*,pbr::experimental::meshlet::*,
 };
 
+#[derive(Component)]
+struct TextScaleMult{
+    mult: Val
+}
+
 #[derive(Component, PartialEq, Clone)]
 struct GameObject{
     ent: Entity,
@@ -70,7 +75,7 @@ fn main() {
     ).set(        
         WindowPlugin{
         primary_window: Some(Window{resolution:
-            WindowResolution::new(1280.0,720.0).with_scale_factor_override(0.5),
+            WindowResolution::new(1280.0,720.0),
             ..default()}),
         ..default()
     }
@@ -88,7 +93,7 @@ fn main() {
 
         .add_systems(PreUpdate, fallback_to_root)
         .add_systems(PreUpdate, devcam_look)
-
+        .add_systems(PreUpdate, scale_ui_text)
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
 
@@ -197,7 +202,9 @@ fn add_button(
     let bla = commands.spawn((
         Node{
             min_width: Val::Percent(100.0),
-            min_height: Val::Px(24.0),
+            min_height: Val::VMin(2.5),
+            max_height: Val::VMin(2.5),
+            overflow: Overflow::clip(),
             border: UiRect::all(Val::Px(1.0)),
             ..default()},
         BackgroundColor(
@@ -209,7 +216,19 @@ fn add_button(
         Button{},
         InspectorListing{obj:o.clone()}
     )).with_children(|parent|{
-        parent.spawn(Text(o.name.clone()));
+        parent.spawn((
+            Text(o.name.clone()),
+            TextFont{
+                font_size: 0.0,
+                ..default()
+            },
+            TextScaleMult{
+                mult: Val::VMin(2.0)
+            },
+            Transform{
+                ..default()
+            }
+        ));
     }).observe(move|
         t: Trigger<Pointer<Down>>,
         kb: Res<ButtonInput<KeyCode>>,
@@ -217,9 +236,15 @@ fn add_button(
         q: Query<(Entity, &Queried)>,
         il: Query<&InspectorListing>,
         mut cmd:Commands|{
+
+        let mut add = true;
+        
         if t.event().button == PointerButton::Primary{
             if s.iter().len() == 1{
-                if s.single().0 == t.entity(){
+                if kb.pressed(KeyCode::ControlLeft){
+                    
+                }
+                else if s.single().0 == t.entity(){
                     for sel in s.iter(){
                         cmd.entity(sel.0).remove::<Selected>();
                     }
@@ -234,11 +259,35 @@ fn add_button(
                     cmd.entity(sel.0).remove::<Selected>();
                 }
             }
-            cmd.entity(t.entity()).insert(Selected{});
+            else {
+                if let Ok(sel) = s.get(t.entity()) {
+                    cmd.entity(sel.0).remove::<Selected>();
+                    add = false;
+                }
+            }
+
+            if add {
+                cmd.entity(t.entity()).insert(Selected{});
+            }
         }
     }).id();
     commands.entity(il).add_children(&[bla]);
 }
+
+fn scale_ui_text(
+    mut cmd: Commands,
+    mut q: Query<(&mut TextFont,&Transform,&mut TextScaleMult)>,
+    w: Query<&Window>
+){
+    if w.iter().len() == 0{
+        return; //stupid error prevention
+    }
+    for mut t in q.iter_mut(){
+        t.0.font_size = Val::resolve(t.2.mult, 1.0, w.single().size()).unwrap()
+    }
+
+}
+
 
 fn color_selected(
     mut commands: Commands,
@@ -385,23 +434,25 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             Node{
                 right: Val::Px(0.0),
-                width: Val::Px(16.0),
-                height: Val::Px(16.0),
+                width: Val::VMin(2.0),
+                height: Val::VMin(2.0),
                 position_type: PositionType::Absolute,
                 ..default()
             },
 
             Button{},
-    )).observe(|_t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
+    )).observe(|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
         | {
-        let new = cmd.spawn_empty().id(); 
-        cmd.entity(new).insert(GameObject{
-            ent: new,
-            name: "YIPPEE".to_string(),
-            id:rand::random::<u32>(),
-            code:"".to_string()
-        });
-        cmd.entity(queried.single_mut().0).add_child(new);
+            if t.button == PointerButton::Primary{
+                let new = cmd.spawn_empty().id(); 
+                cmd.entity(new).insert(GameObject{
+                    ent: new,
+                    name: "YIPPEE".to_string(),
+                    id:rand::random::<u32>(),
+                    code:"".to_string()
+                });
+                cmd.entity(queried.single_mut().0).add_child(new);
+            }
     });
 
     commands.spawn(
@@ -412,24 +463,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             Node{
                 right: Val::Px(0.0),
-                top: Val::Px(16.0),
-                width: Val::Px(16.0),
-                height: Val::Px(16.0),
+                top: Val::VMin(2.0),
+                width: Val::VMin(2.0),
+                height: Val::VMin(2.0),
                 position_type: PositionType::Absolute,
                 ..default()
             },
 
             Button{},
     )).observe(move|
-        _t: Trigger<Pointer<Down>>,
+        t: Trigger<Pointer<Down>>,
         queried:Query<(Entity,&Queried)>,
         showing:Query<(Entity,&Showing)>,
         mut cmd: Commands,
         | {
-            for q in queried.iter(){
-                cmd.entity(q.0).remove::<Queried>();
-            }for q in showing.iter(){
-                cmd.entity(q.0).remove::<Showing>();
+            if t.button == PointerButton::Primary {
+                for q in queried.iter(){
+                    cmd.entity(q.0).remove::<Queried>();
+                }for q in showing.iter(){
+                    cmd.entity(q.0).remove::<Showing>();
+                }
             }
     });
 
