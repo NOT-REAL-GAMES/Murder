@@ -12,9 +12,6 @@ pub struct TestComponent{
 
 fn test(mut world: DeferredWorld, ctx: HookContext) {
     
-        println!("whar");
-
-
         unsafe {        
             let w = world.world.world_mut();
 

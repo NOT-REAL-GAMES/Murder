@@ -1,9 +1,15 @@
 //! Murder: an editor for Bevy made in Bevy
-
+#![feature(duration_millis_float)]
 
 use std::f32::consts::FRAC_PI_2;
+use std::time::Instant;
 use bevy::ecs::world::World;
 
+use bevy::ui::widget::TextNodeFlags;
+use bevy::ui::ContentSize;
+use crate::common_traits::VectorSpace;
+use bevy::window::PresentMode;
+use bevy::math::*;
 use bevy::{
     asset::AssetLoader, 
     core_pipeline::{
@@ -15,7 +21,7 @@ use bevy::{
 use bevy::{
     input::mouse::{MouseWheel, AccumulatedMouseMotion},
     picking::hover::HoverMap,
-    pbr::*,pbr::experimental::meshlet::*,
+    pbr::*,
 };
 
 mod editor;
@@ -47,7 +53,10 @@ struct Selected{
 
 }
 
-
+#[derive(Resource)]
+pub struct time{
+    start: Instant
+}
 
 fn main() {
     let mut app = App::new();
@@ -67,6 +76,7 @@ fn main() {
         // RESOURCES
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
+        .insert_resource(time{start:Instant::now()})
         // SYSTEMS
         .add_systems(PreStartup, setup)        
         .add_systems(Startup, set_window_title)
@@ -105,6 +115,8 @@ fn set_window_title(
     if let Ok(mut window) = window_query.single_mut() {
         window.title = "Murder".to_string();
         window.resolution = WindowResolution::new(1280.0, 720.0);
+        window.present_mode = PresentMode::Mailbox;
+
     } 
 }
 
@@ -128,7 +140,10 @@ fn update_inspector_list(
     i: Query<(Entity, &InspectorListing)>,
     il: Query<(Entity, &InspectorList)>,
     ch: Query<(&Children, &GameObject),With<Queried>>,
-    w: Query<&Window>
+    mut w: Query<&mut Window>,
+
+    bla: Res<time>,
+    mut ui: ResMut<UiScale>
 
 ){
  
@@ -182,10 +197,13 @@ fn update_inspector_list(
 
         if !found && child_of_queried {
             println!("GameObject found without corresponding listing. Adding.");
-            add_button(&mut commands, ass.clone(), o,il.single().unwrap().0, w.single().unwrap());
+            add_button(&mut commands, ass.clone(), o,il.single().unwrap().0, w.single_mut().unwrap());
             commands.entity(o.ent).insert(Showing{});
         }
     }
+
+    //necessary hack to make ui text render without having to resize the window :(
+    ui.0 = 1.0 + (bevy::math::ops::sin( bla.start.elapsed().as_millis_f32() / 10000.0) / 10000.0) ;
 }
 
 fn add_button(
@@ -193,8 +211,9 @@ fn add_button(
     ass: AssetServer,
     o: &GameObject,
     il: Entity,
-    w: &Window
+    mut w: Mut<'_, bevy::prelude::Window>
 ){
+
     let fuck = Val::resolve(
         Val::VMin(2.0),
         1.0,
@@ -217,20 +236,29 @@ fn add_button(
             should_block_lower: false,
             is_hoverable: true},
         Button{},
-        InspectorListing{obj:o.clone()}
+        GlobalZIndex(1),
+
+        InspectorListing{obj:o.clone()},
     )).with_children(|parent|{
-        //FIXME: doesn't render unless window is resized??? what the sprinkle
         parent.spawn((
-            Text::new(o.name.clone()),
+            Node{
+                width:Val::Percent(100.0),
+                height:Val::Percent(100.0),
+                ..default()},
+            TextNodeFlags{needs_recompute:true, needs_measure_fn: true},
+            Text::new(o.name.clone().as_str()),
             TextFont{
                 font: ass.load("Roboto.ttf"),
-                font_size: fuck,
+                font_size: 999.0,
                 ..default()
             },
             TextScaleMult{
                 mult: Val::VMin(2.0)
             },
-            Visibility::Visible
+            Visibility::Visible,
+            GlobalZIndex(2),
+
+
         ));
     }).observe(move|
         t: Trigger<Pointer<Pressed>>,
@@ -275,11 +303,12 @@ fn add_button(
         }
     }).id();
     commands.entity(il).add_children(&[bla]);
+
 }
 
 fn scale_ui_text(
     mut cmd: Commands,
-    mut q: Query<(&mut TextFont,&Transform,&mut TextScaleMult)>,
+    mut q: Query<(&mut TextFont,&Transform,&mut TextScaleMult,Entity)>,
     w: Query<&Window>
 ){
     if w.iter().len() == 0{
@@ -292,9 +321,9 @@ fn scale_ui_text(
 
         let fuck = Val::resolve(t.2.mult, 1.0, res).unwrap();
 
-        if fuck == t.0.font_size{return;}
-
         t.0.font_size = fuck;
+
+        cmd.entity(t.3).insert(TextNodeFlags{needs_recompute:true, needs_measure_fn: true});
     }
 
 }
@@ -381,10 +410,6 @@ fn devcam_look(
     });
 }
 
-fn fuck(){
-    println!("yippee!");
-}
-
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let config: CascadeShadowConfig = CascadeShadowConfigBuilder {
@@ -394,7 +419,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     }.into();
     
-    let cam2d = commands.spawn((
+    commands.spawn((Text("what the fuck".to_string()),TextScaleMult{mult:Val::VMin(10.0)}));
+
+    commands.spawn((
         Camera2d::default(),
         Camera{
             order: 10,
@@ -535,6 +562,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 flex_direction: FlexDirection::Column,
                 ..default()},
             InspectorList{},
+            Pickable{
+                should_block_lower: false,
+                is_hoverable: true
+            },
+            GlobalZIndex(99999),
             ScrollLerp{x:0.0,y:0.0}
         ));
     });
@@ -600,8 +632,8 @@ fn update_scroll_position(
         
     }
         
-    bla.x = bla.x.lerp(0.0,0.01);
-    bla.y = bla.y.lerp(0.0,0.01);
+    bla.x = VectorSpace::lerp(bla.x,0.0,0.01);
+    bla.y = VectorSpace::lerp(bla.y,0.0,0.01);
 
     cmd.entity(scr.single_mut().unwrap().0).insert(bla);
     
