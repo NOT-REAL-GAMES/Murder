@@ -2,16 +2,27 @@
 
 
 use std::f32::consts::FRAC_PI_2;
-use bevy::render::render_resource::AsBindGroup;
-
-use bevy::{asset::AssetLoader, core_pipeline::{prepass::*,experimental::taa::*, *}, prelude::*, render::{render_resource::{TextureViewDescriptor, TextureViewDimension}, settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}, window::{PrimaryWindow, WindowResolution}};
-
+use bevy::ecs::world::World;
 
 use bevy::{
-    input::mouse::{MouseScrollUnit, MouseWheel, AccumulatedMouseMotion},
-    picking::focus::HoverMap,
+    asset::AssetLoader, 
+    core_pipeline::{
+        prepass::*,
+        experimental::taa::*}, 
+    prelude::*, 
+    window::{PrimaryWindow, WindowResolution}};
+
+use bevy::{
+    input::mouse::{MouseWheel, AccumulatedMouseMotion},
+    picking::hover::HoverMap,
     pbr::*,pbr::experimental::meshlet::*,
 };
+
+mod editor;
+mod components;
+
+use crate::editor::*;
+use crate::components::*;
 
 #[derive(Component)]
 struct TextScaleMult{
@@ -32,70 +43,40 @@ struct InspectorListing{
 }
 
 #[derive(Component)]
-struct Queried{}
-
-#[derive(Component)]
-struct Showing{}
-
-#[derive(Component)]
-struct Root{}
-
-#[derive(Component)]
-struct World{}
-
-#[derive(Component)]
-struct InspectorList{
-
-}
-
-#[derive(Component)]
 struct Selected{
 
 }
 
-#[derive(Component, Clone, Copy)]
-struct ScrollLerp{
-    x: f32,
-    y: f32
-}
+
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(
-        RenderPlugin {
-            render_creation:
-                RenderCreation::Automatic(
-                    WgpuSettings{
-                        backends: Some(Backends::VULKAN),
-                        ..default()
-                    }
-                ),
-            ..default()
-        }
-    ).set(        
-        WindowPlugin{
-        primary_window: Some(Window{resolution:
-            WindowResolution::new(1280.0,720.0),
+    app.add_plugins(DefaultPlugins
+        
+        .set(        
+            WindowPlugin{
+            primary_window: Some(Window{resolution:
+                WindowResolution::new(1280.0,720.0),
             ..default()}),
         ..default()
     }
     )).add_plugins((
         TemporalAntiAliasPlugin,
-        MeshletPlugin{cluster_buffer_slots: 1048576},
+        //MeshletPlugin{cluster_buffer_slots: 1048576},
     ))  
         // RESOURCES
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
-        
         // SYSTEMS
         .add_systems(PreStartup, setup)        
         .add_systems(Startup, set_window_title)
-
+        .add_systems(PostStartup, get_all_components)
+        
         .add_systems(PreUpdate, fallback_to_root)
         .add_systems(PreUpdate, devcam_look)
-        .add_systems(PreUpdate, scale_ui_text)
         .add_systems(Update, update_scroll_position)
         .add_systems(Update, update_inspector_list)
+        .add_systems(PostUpdate, scale_ui_text)
 
         .add_systems(PostUpdate, color_selected)
         
@@ -105,13 +86,25 @@ fn main() {
     app.run();
 }
 
+fn get_all_components(
+    w: &mut World
+){
+    for c in w.components().iter() {
+        let bla = c.name();
+        if bla.contains("murder::components::"){
+            println!("{bla}");
+        }
+    }
+}
+
 
 //TODO: add editable component that title is read from
 fn set_window_title(
     mut window_query: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    if let Ok(mut window) = window_query.get_single_mut() {
+    if let Ok(mut window) = window_query.single_mut() {
         window.title = "Murder".to_string();
+        window.resolution = WindowResolution::new(1280.0, 720.0);
     } 
 }
 
@@ -123,21 +116,22 @@ fn delete_objects(
 ) {
     if kb.pressed(KeyCode::Delete){
         for sel in s.iter(){
-            commands.entity(sel.0.obj.ent).despawn_recursive();
+            commands.entity(sel.0.obj.ent).despawn();
         }
     }
 }
 
 fn update_inspector_list(
     mut commands: Commands,
+    ass: Res<AssetServer>,
     g: Query<&GameObject, Without<Showing>>,
     i: Query<(Entity, &InspectorListing)>,
     il: Query<(Entity, &InspectorList)>,
     ch: Query<(&Children, &GameObject),With<Queried>>,
+    w: Query<&Window>
 
 ){
-
-
+ 
     for l in i.iter(){
         let mut found = false;
         let mut child_of_queried = false;
@@ -147,8 +141,8 @@ fn update_inspector_list(
         }
 
         if ch.iter().len() == 1{
-            for qc in ch.single().0.iter(){
-                if l.1.obj.ent == *qc{
+            for qc in ch.single().unwrap().0.iter(){
+                if l.1.obj.ent == qc{
                     child_of_queried = true;
                 }
             }
@@ -156,12 +150,12 @@ fn update_inspector_list(
 
         if !found{
             println!("Listing found for GameObject that doesn't exist. Deleting.");
-            commands.entity(l.0).despawn_recursive();
+            commands.entity(l.0).despawn();
         }
         if !child_of_queried{
             //is queried?
                 println!("Listing found for child GameObject that isn't queried. Deleting.");
-                commands.entity(l.0).despawn_recursive();    
+                commands.entity(l.0).despawn();    
         }
     }
 
@@ -179,8 +173,8 @@ fn update_inspector_list(
         if ch.iter().len() == 1{
 
             
-            for qc in ch.single().0.iter(){
-               if o.ent == *qc{
+            for qc in ch.single().unwrap().0.iter(){
+               if o.ent == qc{
                     child_of_queried = true;
                 }
             }
@@ -188,7 +182,7 @@ fn update_inspector_list(
 
         if !found && child_of_queried {
             println!("GameObject found without corresponding listing. Adding.");
-            add_button(&mut commands, o,il.single().0);
+            add_button(&mut commands, ass.clone(), o,il.single().unwrap().0, w.single().unwrap());
             commands.entity(o.ent).insert(Showing{});
         }
     }
@@ -196,9 +190,18 @@ fn update_inspector_list(
 
 fn add_button(
     commands: &mut Commands,
+    ass: AssetServer,
     o: &GameObject,
-    il: Entity
+    il: Entity,
+    w: &Window
 ){
+    let fuck = Val::resolve(
+        Val::VMin(2.0),
+        1.0,
+        w.size()).unwrap();
+
+        println!("{fuck}");
+
     let bla = commands.spawn((
         Node{
             min_width: Val::Percent(100.0),
@@ -210,27 +213,27 @@ fn add_button(
         BackgroundColor(
             Color::srgb(0.4, 0.4, 0.4)
         ),
-        PickingBehavior{
+        Pickable{
             should_block_lower: false,
             is_hoverable: true},
         Button{},
         InspectorListing{obj:o.clone()}
     )).with_children(|parent|{
+        //FIXME: doesn't render unless window is resized??? what the sprinkle
         parent.spawn((
-            Text(o.name.clone()),
+            Text::new(o.name.clone()),
             TextFont{
-                font_size: 0.0,
+                font: ass.load("Roboto.ttf"),
+                font_size: fuck,
                 ..default()
             },
             TextScaleMult{
                 mult: Val::VMin(2.0)
             },
-            Transform{
-                ..default()
-            }
+            Visibility::Visible
         ));
     }).observe(move|
-        t: Trigger<Pointer<Down>>,
+        t: Trigger<Pointer<Pressed>>,
         kb: Res<ButtonInput<KeyCode>>,
         s: Query<(Entity, &Selected)>,
         q: Query<(Entity, &Queried)>,
@@ -244,14 +247,14 @@ fn add_button(
                 if kb.pressed(KeyCode::ControlLeft){
                     
                 }
-                else if s.single().0 == t.entity(){
+                else if s.single().unwrap().0 == t.target(){
                     for sel in s.iter(){
                         cmd.entity(sel.0).remove::<Selected>();
                     }
                     for qr in q.iter(){
                         cmd.entity(qr.0).remove::<Queried>();
                     }
-                    cmd.entity(il.get(t.entity()).unwrap().obj.ent).insert(Queried{});
+                    cmd.entity(il.get(t.target()).unwrap().obj.ent).insert(Queried{});
                 }
             }
             if !kb.pressed(KeyCode::ControlLeft){
@@ -260,14 +263,14 @@ fn add_button(
                 }
             }
             else {
-                if let Ok(sel) = s.get(t.entity()) {
+                if let Ok(sel) = s.get(t.target()) {
                     cmd.entity(sel.0).remove::<Selected>();
                     add = false;
                 }
             }
 
             if add {
-                cmd.entity(t.entity()).insert(Selected{});
+                cmd.entity(t.target()).insert(Selected{});
             }
         }
     }).id();
@@ -282,8 +285,16 @@ fn scale_ui_text(
     if w.iter().len() == 0{
         return; //stupid error prevention
     }
+
+    let res = w.single().unwrap().size();
+
     for mut t in q.iter_mut(){
-        t.0.font_size = Val::resolve(t.2.mult, 1.0, w.single().size()).unwrap()
+
+        let fuck = Val::resolve(t.2.mult, 1.0, res).unwrap();
+
+        if fuck == t.0.font_size{return;}
+
+        t.0.font_size = fuck;
     }
 
 }
@@ -324,7 +335,7 @@ fn fallback_to_root(
 ){
     if queried.iter().len() == 0{
         println!("No queried object found. Falling back to root.");
-        cmd.entity(root.single_mut().0).insert(Queried{});
+        cmd.entity(root.single_mut().unwrap().0).insert(Queried{});
     }
 }
 
@@ -335,12 +346,12 @@ fn devcam_look(
     mut cmd: Commands
 ){
 
-    let t = tf.single().0;
+    let t = tf.single().unwrap().0;
 
     let mut pos = t.translation;
     let rot =  t.rotation.to_euler(EulerRot::YXZ);
 
-    let mult = 1000.0;
+    let mult = 1.0;
 
     if kb.pressed(KeyCode::KeyW){
         pos += t.forward() * mult;
@@ -358,7 +369,7 @@ fn devcam_look(
         pos += t.right() * mult;
     }
     
-    cmd.entity(tf.single_mut().2).insert(Transform{
+    cmd.entity(tf.single_mut().unwrap().2).insert(Transform{
         translation: pos,
         rotation: Quat::from_euler(EulerRot::YXZ, 
             rot.0-cum.delta.x*0.01, 
@@ -370,6 +381,10 @@ fn devcam_look(
     });
 }
 
+fn fuck(){
+    println!("yippee!");
+}
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let config: CascadeShadowConfig = CascadeShadowConfigBuilder {
@@ -379,8 +394,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     }.into();
     
+    let cam2d = commands.spawn((
+        Camera2d::default(),
+        Camera{
+            order: 10,
+            clear_color:ClearColorConfig::None,
+            
+            ..default()},Msaa::Off));
+
     let cam = commands.spawn( (
         Camera3d{..default()},
+        Camera{order: 1,..default()},
+        Transform{translation:Vec3 { x: 0.0, y: 1000.0, z: 0.0 },..default()},
         Msaa::Off,        
         ShadowFilteringMethod::Temporal,
         //TemporalAntiAliasing{reset:false},
@@ -395,8 +420,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             shadow_normal_bias: 1.8,
             illuminance: 25_000.0,
             shadows_enabled: true,
-            soft_shadow_size: Some(10.0),
-            color: Color::srgb(1.0, 0.0, 0.3125) },
+            color: Color::srgb(1.0, 0.9, 0.7),
+            ..default()
+        },
         Transform{
             rotation: Quat::from_euler(
                 EulerRot::XYZ, 
@@ -415,7 +441,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         );
 
     commands.insert_resource(AmbientLight{
-        color: Color::srgb(0.2, 0.2, 0.33), brightness: 1000.0
+        color: Color::srgb(0.2, 0.2, 0.33), brightness: 1000.0,..default()
     });
 
     commands.insert_resource(ClearColor(
@@ -441,17 +467,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
 
             Button{},
-    )).observe(|t: Trigger<Pointer<Down>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
+    )).observe(|t: Trigger<Pointer<Pressed>>,mut cmd: Commands,mut queried:Query<(Entity,&Queried)>
         | {
             if t.button == PointerButton::Primary{
                 let new = cmd.spawn_empty().id(); 
-                cmd.entity(new).insert(GameObject{
+                cmd.entity(new).insert((GameObject{
                     ent: new,
                     name: "YIPPEE".to_string(),
                     id:rand::random::<u32>(),
                     code:"".to_string()
-                });
-                cmd.entity(queried.single_mut().0).add_child(new);
+                }));
+
+                cmd.entity(new).insert(TestComponent{});
+                
+                cmd.entity(queried.single_mut().unwrap().0).add_child(new);
             }
     });
 
@@ -472,7 +501,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             Button{},
     )).observe(move|
-        t: Trigger<Pointer<Down>>,
+        t: Trigger<Pointer<Pressed>>,
         queried:Query<(Entity,&Queried)>,
         showing:Query<(Entity,&Showing)>,
         mut cmd: Commands,
@@ -540,12 +569,8 @@ fn update_scroll_position(
 
     let (mut dx, mut dy) = (0.0, 0.0);
     for mouse_wheel_event in mouse_wheel_events.read() {
-        (dx,dy) = match mouse_wheel_event.unit {
-            MouseScrollUnit::Line => (
-                mouse_wheel_event.x * 2.0,
-                mouse_wheel_event.y * 2.0,
-            ),
-            MouseScrollUnit::Pixel => (mouse_wheel_event.x, mouse_wheel_event.y),
+        (dx,dy) = {
+            (mouse_wheel_event.x, mouse_wheel_event.y)
         };
 
         if keyboard_input.pressed(KeyCode::ControlLeft)
@@ -569,7 +594,7 @@ fn update_scroll_position(
         }
     }
 
-    if let Ok(mut scroll_position) = scrolled_node_query.get_mut(scr.single_mut().0) {
+    if let Ok(mut scroll_position) = scrolled_node_query.get_mut(scr.single_mut().unwrap().0) {
         scroll_position.offset_x -= bla.x;
         scroll_position.offset_y -= bla.y;
         
@@ -578,7 +603,7 @@ fn update_scroll_position(
     bla.x = bla.x.lerp(0.0,0.01);
     bla.y = bla.y.lerp(0.0,0.01);
 
-    cmd.entity(scr.single_mut().0).insert(bla);
+    cmd.entity(scr.single_mut().unwrap().0).insert(bla);
     
 }
 
