@@ -16,7 +16,7 @@ All code shown is presented as proof-of-concept and ***will be*** subject to cha
 
 ### Murder is an editor for Bevy, built in Bevy. 
 
-It is intended to be made in accordance with the design principles laid out in [the design document](https://bevyengine.github.io/bevy_editor_prototypes/) made by the official Bevy team.
+It is intended to be made ~~in accordance with the design principles laid out in [the design document](https://bevyengine.github.io/bevy_editor_prototypes/) made by the official Bevy team.~~ Disregard that: the design principles are a bit undecided as is as I try different approaches to make a usable editor.
 
 ---
 
