@@ -8,7 +8,7 @@ edition = "2024"
 accesskit = "0.17.1"
 avian2d = { git = "https://github.com/Jondolf/avian", branch = "main" }
 avian3d = { git = "https://github.com/Jondolf/avian", branch = "main" }
-bevy = {git = "https://github.com/NOT-REAL-GAMES/bevy", features = ["meshlet","meshlet_processor"]}
+bevy = {git = "https://github.com/NOT-REAL-GAMES/bevy", features = ["meshlet","meshlet_processor","bevy_dev_tools"]}
 bevy-trait-query = "0.6.0"
 bevy_mod_picking = "0.20.1"
 default-args = "1.0.0"
@@ -20,5 +20,18 @@ wasm-bindgen = "0.2.100"
 [profile.dev.package."*"]
 opt-level = 3
 
+[profile.release.package."*"]
+opt-level = 3
+codegen-units = 1
+incremental = false
+debug = false
+
 [profile.dev]
-opt-level = 1
+opt-level = 3
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+incremental = false
+debug = false

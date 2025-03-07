@@ -1,14 +1,21 @@
 //! Murder: an editor for Bevy made in Bevy
 #![feature(duration_millis_float)]
+#![feature(trivial_bounds)]
+
 
 use std::f32::consts::FRAC_PI_2;
+use std::ops::Deref;
 use std::time::Instant;
 use bevy::ecs::world::World;
 
+use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
+
+use bevy::text::FontSmoothing;
+use bevy::{ core_pipeline::{prepass::*,experimental::taa::*, *}, prelude::*, render::{render_resource::{TextureViewDescriptor, TextureViewDimension}, settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
 use bevy::ui::widget::TextNodeFlags;
 use bevy::ui::ContentSize;
 use crate::common_traits::VectorSpace;
-use bevy::window::PresentMode;
+use bevy::window::{PresentMode, WindowResized};
 use bevy::math::*;
 use bevy::{
     asset::AssetLoader, 
@@ -32,7 +39,8 @@ use crate::components::*;
 
 #[derive(Component)]
 struct TextScaleMult{
-    mult: Val
+    mult: Val,
+    calculated: bool
 }
 
 #[derive(Component, PartialEq, Clone)]
@@ -52,6 +60,12 @@ struct InspectorListing{
 struct Selected{
 
 }
+#[derive(Component)]
+struct NeedsUpdating{
+}
+
+#[derive(Resource)]
+struct SampledShape(Cuboid);
 
 #[derive(Resource)]
 pub struct time{
@@ -60,7 +74,7 @@ pub struct time{
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins
+    app.add_plugins((DefaultPlugins
         
         .set(        
             WindowPlugin{
@@ -69,19 +83,53 @@ fn main() {
             ..default()}),
         ..default()
     }
-    )).add_plugins((
+    ).set(
+        RenderPlugin {
+            render_creation:
+                RenderCreation::Automatic(
+                    WgpuSettings{
+                        backends: Some(Backends::VULKAN),
+                        ..default()
+                    }
+                ),
+            ..default()
+        }
+    ).set(PbrPlugin{
+        prepass_enabled: true,
+        add_default_deferred_lighting_plugin: true,
+        use_gpu_instance_buffer_builder: true,
+        ..default()
+    }),FpsOverlayPlugin {
+        config: FpsOverlayConfig {
+            text_config: TextFont {
+                // Here we define size of our overlay
+                font_size: 42.0,
+                // If we want, we can use a custom font
+                font: default(),
+                // We could also disable font smoothing,
+                font_smoothing: FontSmoothing::default(),
+                ..default()
+            },
+            // We can also change color of the overlay
+            text_color: Color::srgb(1.0, 1.0, 1.0),
+            enabled: true,
+            ..default()
+        },
+    },
+)).add_plugins((
         TemporalAntiAliasPlugin,
         //MeshletPlugin{cluster_buffer_slots: 1048576},
     ))  
         // RESOURCES
-        .insert_resource(DirectionalLightShadowMap { size: 4096 })
+        .insert_resource(DirectionalLightShadowMap { size: 512 })
         .insert_resource(DefaultOpaqueRendererMethod::deferred())
         .insert_resource(time{start:Instant::now()})
         // SYSTEMS
         .add_systems(PreStartup, setup)        
         .add_systems(Startup, set_window_title)
         .add_systems(PostStartup, get_all_components)
-        
+        .add_systems(Update, update_pos)
+        .add_systems(PreUpdate, rescale_ui_text)
         .add_systems(PreUpdate, fallback_to_root)
         .add_systems(PreUpdate, devcam_look)
         .add_systems(Update, update_scroll_position)
@@ -91,9 +139,22 @@ fn main() {
         .add_systems(PostUpdate, color_selected)
         
         .add_systems(Last, delete_objects)
+        .add_event::<WindowResized>()
         ;
 
     app.run();
+}
+
+fn update_pos(
+    mut cmd: Commands,
+    mut q: Query<(&NeedsUpdating, Entity, &mut GlobalTransform, &Transform)>,
+){
+    for mut p in q.iter_mut(){
+        let pos = p.3.translation;
+        println!("{pos}");
+        *p.2 = (p.3.compute_affine().into());
+        cmd.entity(p.1).remove::<NeedsUpdating>();
+    }
 }
 
 fn get_all_components(
@@ -101,9 +162,9 @@ fn get_all_components(
 ){
     for c in w.components().iter() {
         let bla = c.name();
-        if bla.contains("murder::components::"){
+        //if bla.contains("murder::"){
             println!("{bla}");
-        }
+        //}
     }
 }
 
@@ -115,7 +176,8 @@ fn set_window_title(
     if let Ok(mut window) = window_query.single_mut() {
         window.title = "Murder".to_string();
         window.resolution = WindowResolution::new(1280.0, 720.0);
-        window.present_mode = PresentMode::Mailbox;
+        //FIXME: make functionality that detects mailbox
+        //window.present_mode = PresentMode::Mailbox;
 
     } 
 }
@@ -141,9 +203,9 @@ fn update_inspector_list(
     il: Query<(Entity, &InspectorList)>,
     ch: Query<(&Children, &GameObject),With<Queried>>,
     mut w: Query<&mut Window>,
-
-    bla: Res<time>,
+    time: Res<time>,
     mut ui: ResMut<UiScale>
+
 
 ){
  
@@ -197,13 +259,10 @@ fn update_inspector_list(
 
         if !found && child_of_queried {
             println!("GameObject found without corresponding listing. Adding.");
-            add_button(&mut commands, ass.clone(), o,il.single().unwrap().0, w.single_mut().unwrap());
+            add_button(&mut commands, ass.clone(), o,il.single().unwrap().0, w.single_mut().unwrap(), &time, ui.as_mut());
             commands.entity(o.ent).insert(Showing{});
         }
     }
-
-    //necessary hack to make ui text render without having to resize the window :(
-    ui.0 = 1.0 + (bevy::math::ops::sin( bla.start.elapsed().as_millis_f32() / 10000.0) / 10000.0) ;
 }
 
 fn add_button(
@@ -211,7 +270,9 @@ fn add_button(
     ass: AssetServer,
     o: &GameObject,
     il: Entity,
-    mut w: Mut<'_, bevy::prelude::Window>
+    w: Mut<'_, bevy::prelude::Window>,
+    time: &Res<time>,
+    mut ui: &mut UiScale
 ){
 
     let fuck = Val::resolve(
@@ -245,7 +306,6 @@ fn add_button(
                 width:Val::Percent(100.0),
                 height:Val::Percent(100.0),
                 ..default()},
-            TextNodeFlags{needs_recompute:true, needs_measure_fn: true},
             Text::new(o.name.clone().as_str()),
             TextFont{
                 font: ass.load("Roboto.ttf"),
@@ -253,7 +313,8 @@ fn add_button(
                 ..default()
             },
             TextScaleMult{
-                mult: Val::VMin(2.0)
+                mult: Val::VMin(2.0),
+                calculated: false
             },
             Visibility::Visible,
             GlobalZIndex(2),
@@ -304,8 +365,14 @@ fn add_button(
     }).id();
     commands.entity(il).add_children(&[bla]);
 
+    //necessary hack to make ui text render without having to resize the window :(
+    ui.0 = 1.0 + (bevy::math::ops::sin( time.start.elapsed().as_millis_f32() / 10000.0) / 10000.0) ;
+
+
 }
 
+
+//
 fn scale_ui_text(
     mut cmd: Commands,
     mut q: Query<(&mut TextFont,&Transform,&mut TextScaleMult,Entity)>,
@@ -319,15 +386,28 @@ fn scale_ui_text(
 
     for mut t in q.iter_mut(){
 
+        if t.2.calculated {return;}
+
         let fuck = Val::resolve(t.2.mult, 1.0, res).unwrap();
 
         t.0.font_size = fuck;
 
-        cmd.entity(t.3).insert(TextNodeFlags{needs_recompute:true, needs_measure_fn: true});
+        t.2.calculated = true;
     }
 
 }
 
+fn rescale_ui_text(
+    mut q: Query<&mut TextScaleMult>,
+    mut ev: EventReader<WindowResized>
+){
+    for e in ev.read(){
+        for mut m in q.iter_mut(){
+            m.calculated = false;
+        }
+    }
+    
+}
 
 fn color_selected(
     mut commands: Commands,
@@ -419,7 +499,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     }.into();
     
-    commands.spawn((Text("what the fuck".to_string()),TextScaleMult{mult:Val::VMin(10.0)}));
+    //commands.spawn((Text("what the fuck".to_string()),TextScaleMult{mult:Val::VMin(10.0)}));
 
     commands.spawn((
         Camera2d::default(),
@@ -432,7 +512,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let cam = commands.spawn( (
         Camera3d{..default()},
         Camera{order: 1,..default()},
-        Transform{translation:Vec3 { x: 0.0, y: 1000.0, z: 0.0 },..default()},
+        Transform{translation:Vec3 { x: 0.0, y: 0.0, z: 0.0 },..default()},
         Msaa::Off,        
         ShadowFilteringMethod::Temporal,
         //TemporalAntiAliasing{reset:false},
@@ -467,8 +547,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },Queried{},Root{})
         );
 
-    commands.insert_resource(AmbientLight{
-        color: Color::srgb(0.2, 0.2, 0.33), brightness: 1000.0,..default()
+    let shape = Cuboid::from_length(10.0);
+    commands.insert_resource(SampledShape(shape));
+
+    commands.spawn(EnvironmentMapLight{
+        ..default()
     });
 
     commands.insert_resource(ClearColor(
@@ -629,7 +712,6 @@ fn update_scroll_position(
     if let Ok(mut scroll_position) = scrolled_node_query.get_mut(scr.single_mut().unwrap().0) {
         scroll_position.offset_x -= bla.x;
         scroll_position.offset_y -= bla.y;
-        
     }
         
     bla.x = VectorSpace::lerp(bla.x,0.0,0.01);
