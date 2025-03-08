@@ -153,11 +153,14 @@ fn run_vm(
     mut w: &mut World
 ){        
     unsafe{
+
+        let cell = w.as_unsafe_world_cell();
     
-        let wrld_mut = w.as_unsafe_world_cell().world_mut();
+        let wrld = cell.world();
+        let wrld_mut = cell.world_mut();
 
         let mut go = wrld_mut.query::<&GameObject>();
-        for g in go.iter(wrld_mut){
+        for g in go.iter(wrld){
 
 
             let mut code = g.code.clone();
@@ -168,11 +171,11 @@ fn run_vm(
     }
 }
 
-fn run_branch(mut w: &World, bkw: &str, bparams: Split<&str>, mut code: String) -> &'static str{
+fn run_branch(mut w: &mut World, bkw: &str, bparams: Split<&str>, mut code: String) -> &'static str{
 
     unsafe{
 
-        let mut world = w.as_unsafe_world_cell().world_mut();
+        let mut world =  w.as_unsafe_world_cell().world_mut();
 
         if code.find('}').is_some(){
             while code.find('}').is_some(){
@@ -185,32 +188,44 @@ fn run_branch(mut w: &World, bkw: &str, bparams: Split<&str>, mut code: String) 
                     ..start).unwrap();
             
                 println!("{kw}");
-            
-                //separate parameters if any
-                let pstart = kw.find('(').unwrap();
-                let pend = kw.find(')').unwrap()+1;
 
-                let params;
+                let params: Split<&str>;
+                let rawkw: &str;
 
-                if kw.get(pstart..pend).is_some(){
-                    params = kw.get(
-                        pstart..pend).unwrap()
-                        .trim_start_matches('(')
-                        .trim_end_matches(')')
-                        .split(",");  
-                } else {
+                //separate parameters if any            
+                if kw.find('(').is_some(){
+                    let pstart = kw.find('(').unwrap();
+                    let pend = kw.find(')').unwrap()+1;
+                
+
+                    if kw.get(pstart..pend).is_some(){
+                        params = kw.get(
+                            pstart..pend).unwrap()
+                            .trim_start_matches('(')
+                            .trim_end_matches(')')
+                            .split(",");  
+                    } else {
+                        params = "".split("");
+                    }
+
+                    //get branch
+                    
+                
+                    rawkw = kw.get(..pstart).unwrap();
+
+                }
+
+                else {
                     params = "".split("");
+                    rawkw = kw.get(..start).unwrap();
+
                 }
                 
-                //get branch
                 let test = code.get(
                     start..end).unwrap()
                     .trim_start_matches('{')
                     .trim_end_matches('}')
                     ;
-                
-                let rawkw = kw.get(..pstart).unwrap();
-
 
                 //DEBUG: print branch
                 println!("{test}");
@@ -227,46 +242,92 @@ fn run_branch(mut w: &World, bkw: &str, bparams: Split<&str>, mut code: String) 
         else {
             if code == "".to_string() {return "";}
 
-            println!("No branches found in code {code}");        
+            let mut rawkw: Split<&str>;
+            let params: Split<&str>;
 
-            println!("KEYWORD: {bkw}");
+            if code.find('(').is_some(){
 
-            let mut rawkw = "";
+                println!("Branch found: ");
 
-            for p in bparams.clone() {
-                println!("PARAMETER: {p}");
-            }
-
-            if code.find(')').is_some(){
                 //separate parameters if any
                 let pstart = code.find('(').unwrap();
                 let pend = code.find(')').unwrap()+1;
+                
 
-                let params = bkw.get(
-                    pstart..pend).unwrap()
-                    .trim_start_matches('(')
-                    .trim_end_matches(')')
-                    .split(","); 
+                if bkw.get(pstart..pend).is_some(){
+                    params = bkw.get(
+                        pstart..pend).unwrap()
+                        .trim_start_matches('(')
+                        .trim_end_matches(')')
+                        .split(","); 
+                }
+                else {params = "".split("");}
 
                 //get raw keyword
-                rawkw = bkw.get(
-                    ..pstart).unwrap();
+                if bkw.get(..pstart).is_some(){
+                    rawkw = bkw.get(..pstart).unwrap().split(" ");
+                } else {
+                    rawkw = bkw.split(" ");
+                }
+                
 
             }
             else {
-                rawkw = bkw;
+                println!("No branches found in code {code}");
+                rawkw = bkw.split(" ");
             }
 
+            for key in rawkw.clone(){
+                println!("KEYWORD: {key}");
+            }
 
-            //match keyword
-            match rawkw{
-                "hello" => {
-                    for p in bparams.clone() {
-                        println!("CODE: {code}");
+            if !bparams.clone().all(|x| x.is_empty()){
+                for p in bparams.clone() {
+                    println!("PARAMETER: {p}");
+                }
+            }
+
+            for key in rawkw.clone(){
+                //match keyword
+                match key{
+                    "exec" => {
+                        for c in code.split(";"){
+                            if !c.is_empty(){
+                                println!("CODE: {c}");
+                                    let cmdkw;
+                                    let cmdp;
+
+
+                                    if c.find('(').is_some(){
+                                        let cmdpstart = c.find("(").unwrap();
+                                        let cmdpend = c.find(")").unwrap()+1;
+                                        if c.get(cmdpstart..cmdpend).is_some(){
+                                            cmdp = c.get(
+                                            cmdpstart..cmdpend).unwrap()
+                                            .trim_start_matches('(')
+                                            .trim_end_matches(')')
+                                            .split(",");
+                                        cmdkw = c.get(..cmdpstart).unwrap();
+
+                                        }
+                                        else {
+                                            cmdp = "".split("");
+                                            cmdkw = c;
+                                        }
+                                         
+                                    }else {
+                                        cmdp = "".split("");
+                                        cmdkw = c;
+                                    }
+
+
+                                    run_branch(world, cmdkw, cmdp, c.to_string());
+                            }
+                        }
+                    },
+                    _ => {
+                        println!("{key} is not a keyword!! (yet?)");
                     }
-                },
-                _ => {
-                    println!("{rawkw} is not a keyword!! (yet?)");
                 }
             }
         }
@@ -708,7 +769,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ent: new,
                     name: "YIPPEE".to_string(),
                     id:rand::random::<u32>(),
-                    code:"hello(blessed){world}".to_string()
+                    code:"exec{hello(world);}".to_string()
                 }));
 
                 cmd.entity(new).insert(TestComponent{});
