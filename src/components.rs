@@ -30,9 +30,13 @@ fn test(mut world: DeferredWorld, ctx: HookContext) {
             
             let r = c.0.sample_boundary(&mut thread_rng());
 
-            println!("{r}");
-
-            w.commands().entity(ctx.entity).insert((Mesh3d(bla),MeshMaterial3d(bla2),NeedsUpdating{},Transform{translation:r,..default()},Visibility::Visible));
+            w.commands().entity(ctx.entity).insert((
+                Mesh3d(bla),
+                MeshMaterial3d(bla2),
+                NeedsUpdating,
+                Transform{translation:r,..default()},
+                Visibility::Visible)
+            );
             
             w.flush();
         }

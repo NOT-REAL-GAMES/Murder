@@ -6,6 +6,8 @@
 use std::f32::consts::FRAC_PI_2;
 use std::ops::Deref;
 use std::time::Instant;
+use std::str::Split;
+
 use bevy::ecs::world::World;
 
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
@@ -61,11 +63,10 @@ struct Selected{
 
 }
 #[derive(Component)]
-struct NeedsUpdating{
-}
+struct NeedsUpdating;
 
 #[derive(Resource)]
-struct SampledShape(Cuboid);
+struct SampledShape(Sphere);
 
 #[derive(Resource)]
 pub struct time{
@@ -128,6 +129,9 @@ fn main() {
         .add_systems(PreStartup, setup)        
         .add_systems(Startup, set_window_title)
         .add_systems(PostStartup, get_all_components)
+
+        .add_systems(PreUpdate, run_vm)
+
         .add_systems(Update, update_pos)
         .add_systems(PreUpdate, rescale_ui_text)
         .add_systems(PreUpdate, fallback_to_root)
@@ -145,13 +149,139 @@ fn main() {
     app.run();
 }
 
+fn run_vm(
+    mut w: &mut World
+){        
+    unsafe{
+    
+        let wrld_mut = w.as_unsafe_world_cell().world_mut();
+
+        let mut go = wrld_mut.query::<&GameObject>();
+        for g in go.iter(wrld_mut){
+
+
+            let mut code = g.code.clone();
+
+                run_branch(wrld_mut, "", "".split(""), code);
+            }
+            //look for next branch in code
+    }
+}
+
+fn run_branch(mut w: &World, bkw: &str, bparams: Split<&str>, mut code: String) -> &'static str{
+
+    unsafe{
+
+        let mut world = w.as_unsafe_world_cell().world_mut();
+
+        if code.find('}').is_some(){
+            while code.find('}').is_some(){
+                println!("Branch found: ");
+                let start  = (code.find('{')).unwrap();
+                let end  = (code.find('}')).unwrap()+1;
+        
+                //look for keywords preceding branch
+                let kw =  code.get(
+                    ..start).unwrap();
+            
+                println!("{kw}");
+            
+                //separate parameters if any
+                let pstart = kw.find('(').unwrap();
+                let pend = kw.find(')').unwrap()+1;
+
+                let params;
+
+                if kw.get(pstart..pend).is_some(){
+                    params = kw.get(
+                        pstart..pend).unwrap()
+                        .trim_start_matches('(')
+                        .trim_end_matches(')')
+                        .split(",");  
+                } else {
+                    params = "".split("");
+                }
+                
+                //get branch
+                let test = code.get(
+                    start..end).unwrap()
+                    .trim_start_matches('{')
+                    .trim_end_matches('}')
+                    ;
+                
+                let rawkw = kw.get(..pstart).unwrap();
+
+
+                //DEBUG: print branch
+                println!("{test}");
+
+                let str: String = test.to_string();
+
+                run_branch(w, rawkw, params, str.clone());
+
+                let str: String = code.get(end..).unwrap().to_string();
+                code = str.clone();    
+            }
+            
+        }
+        else {
+            if code == "".to_string() {return "";}
+
+            println!("No branches found in code {code}");        
+
+            println!("KEYWORD: {bkw}");
+
+            let mut rawkw = "";
+
+            for p in bparams.clone() {
+                println!("PARAMETER: {p}");
+            }
+
+            if code.find(')').is_some(){
+                //separate parameters if any
+                let pstart = code.find('(').unwrap();
+                let pend = code.find(')').unwrap()+1;
+
+                let params = bkw.get(
+                    pstart..pend).unwrap()
+                    .trim_start_matches('(')
+                    .trim_end_matches(')')
+                    .split(","); 
+
+                //get raw keyword
+                rawkw = bkw.get(
+                    ..pstart).unwrap();
+
+            }
+            else {
+                rawkw = bkw;
+            }
+
+
+            //match keyword
+            match rawkw{
+                "hello" => {
+                    for p in bparams.clone() {
+                        println!("CODE: {code}");
+                    }
+                },
+                _ => {
+                    println!("{rawkw} is not a keyword!! (yet?)");
+                }
+            }
+        }
+    }
+
+    return "";
+}
+
 fn update_pos(
     mut cmd: Commands,
     mut q: Query<(&NeedsUpdating, Entity, &mut GlobalTransform, &Transform)>,
 ){
     for mut p in q.iter_mut(){
         let pos = p.3.translation;
-        println!("{pos}");
+        //println!("{pos}");
         *p.2 = (p.3.compute_affine().into());
         cmd.entity(p.1).remove::<NeedsUpdating>();
     }
@@ -160,12 +290,7 @@ fn update_pos(
 fn get_all_components(
     w: &mut World
 ){
-    for c in w.components().iter() {
-        let bla = c.name();
-        //if bla.contains("murder::"){
-            println!("{bla}");
-        //}
-    }
+
 }
 
 
@@ -280,7 +405,7 @@ fn add_button(
         1.0,
         w.size()).unwrap();
 
-        println!("{fuck}");
+        //println!("{fuck}");
 
     let bla = commands.spawn((
         Node{
@@ -499,8 +624,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ..default()
     }.into();
     
-    //commands.spawn((Text("what the fuck".to_string()),TextScaleMult{mult:Val::VMin(10.0)}));
-
     commands.spawn((
         Camera2d::default(),
         Camera{
@@ -547,7 +670,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },Queried{},Root{})
         );
 
-    let shape = Cuboid::from_length(10.0);
+    let shape = Sphere::new(10.0);
     commands.insert_resource(SampledShape(shape));
 
     commands.spawn(EnvironmentMapLight{
@@ -585,7 +708,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ent: new,
                     name: "YIPPEE".to_string(),
                     id:rand::random::<u32>(),
-                    code:"".to_string()
+                    code:"hello(blessed){world}".to_string()
                 }));
 
                 cmd.entity(new).insert(TestComponent{});
