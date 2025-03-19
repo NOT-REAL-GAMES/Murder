@@ -1,6 +1,8 @@
 //! Murder: an editor for Bevy made in Bevy
 #![feature(duration_millis_float)]
 #![feature(trivial_bounds)]
+#![feature(iter_advance_by)]
+
 
 pub mod core;
 use crate::core::*;
@@ -73,11 +75,8 @@ fn main() {
     }),FpsOverlayPlugin {
         config: FpsOverlayConfig {
             text_config: TextFont {
-                // Here we define size of our overlay
                 font_size: 42.0,
-                // If we want, we can use a custom font
                 font: default(),
-                // We could also disable font smoothing,
                 font_smoothing: FontSmoothing::default(),
                 ..default()
             },

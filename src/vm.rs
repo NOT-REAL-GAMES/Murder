@@ -1,3 +1,5 @@
+use nom::Input;
+
 use crate::core::*;
 
 /// Represent any valid JSON value.
@@ -77,12 +79,36 @@ pub fn run_vm(
             let mut code = g.code.clone();
 
             for t in Token::lexer(code.as_str()){
+                let mut idx = 0;
                 for a in t.iter(){
                     if let Token::KeywordIf = a {
                         // get condition spanning spanning from
                         // whitespace seperator after if keyword
                         // to the first bracket to appear
+
+                        let mut cond = vec![];
+                        let mut inner_idx = 0;
+                        let t2 = Token::lexer(code.as_str());
+                        for b in t2{
+                            if inner_idx <= idx{
+                                inner_idx += 1;
+                            } else {
+                                if let Ok(Token::BraceOpen) = b {
+                                    break;
+                                } else {
+                                    if let Ok(Token::Whitespace) = b {
+
+                                    } else {
+                                        let fuck = b;
+                                        cond.push(fuck.unwrap());
+                                    }
+                                    inner_idx += 1;
+                                }
+                            }
+                        }
+                        println!("{cond:?}");
                     }
+                    idx+=1;
                 }
             }
         }

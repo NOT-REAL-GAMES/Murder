@@ -22,7 +22,7 @@ pub struct Root{}
 pub struct ScrollLerp{
     pub x: f32,
     pub y: f32
-}//
+}
 
 #[derive(Component)]
 pub struct InspectorList{
