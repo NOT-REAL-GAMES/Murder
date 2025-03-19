@@ -2,41 +2,16 @@
 #![feature(duration_millis_float)]
 #![feature(trivial_bounds)]
 
+pub mod core;
+use crate::core::*;
 
-use std::f32::consts::FRAC_PI_2;
-use std::ops::Deref;
-use std::time::Instant;
-use std::str::Split;
-
-use bevy::ecs::world::World;
-
-use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin};
-
-use bevy::text::FontSmoothing;
-use bevy::{ core_pipeline::{prepass::*,experimental::taa::*, *}, prelude::*, render::{render_resource::{TextureViewDescriptor, TextureViewDimension}, settings::{Backends, RenderCreation, WgpuSettings}, RenderPlugin}};
-use bevy::ui::widget::TextNodeFlags;
-use bevy::ui::ContentSize;
-use crate::common_traits::VectorSpace;
-use bevy::window::{PresentMode, WindowResized};
-use bevy::math::*;
-use bevy::{
-    asset::AssetLoader, 
-    core_pipeline::{
-        prepass::*,
-        experimental::taa::*}, 
-    prelude::*, 
-    window::{PrimaryWindow, WindowResolution}};
-
-use bevy::{
-    input::mouse::{MouseWheel, AccumulatedMouseMotion},
-    picking::hover::HoverMap,
-    pbr::*,
-};
-
-mod editor;
-mod components;
-
+pub mod editor;
 use crate::editor::*;
+
+pub mod vm;
+use crate::vm::*;
+
+pub mod components; 
 use crate::components::*;
 
 #[derive(Component)]
@@ -45,13 +20,6 @@ struct TextScaleMult{
     calculated: bool
 }
 
-#[derive(Component, PartialEq, Clone)]
-struct GameObject{
-    ent: Entity,
-    name: String,
-    id: u32,
-    code: String
-}
 
 #[derive(Component)]
 struct InspectorListing{
@@ -72,6 +40,8 @@ struct SampledShape(Sphere);
 pub struct time{
     start: Instant
 }
+
+
 
 fn main() {
     let mut app = App::new();
@@ -114,6 +84,7 @@ fn main() {
             // We can also change color of the overlay
             text_color: Color::srgb(1.0, 1.0, 1.0),
             enabled: true,
+            refresh_interval: Duration::from_millis(50),
             ..default()
         },
     },
@@ -149,200 +120,15 @@ fn main() {
     app.run();
 }
 
-fn run_vm(
-    mut w: &mut World
-){        
-    unsafe{
-
-        let cell = w.as_unsafe_world_cell();
-    
-        let wrld = cell.world();
-        let wrld_mut = cell.world_mut();
-
-        let mut go = wrld_mut.query::<&GameObject>();
-        for g in go.iter(wrld){
 
 
-            let mut code = g.code.clone();
 
-                run_branch(wrld_mut, "", "".split(""), code);
-            }
-            //look for next branch in code
-    }
-}
-
-fn run_branch(mut w: &mut World, bkw: &str, bparams: Split<&str>, mut code: String) -> &'static str{
-
-    unsafe{
-
-        let mut world =  w.as_unsafe_world_cell().world_mut();
-
-        if code.find('}').is_some(){
-            while code.find('}').is_some(){
-                println!("Branch found: ");
-                let start  = (code.find('{')).unwrap();
-                let end  = (code.find('}')).unwrap()+1;
-        
-                //look for keywords preceding branch
-                let kw =  code.get(
-                    ..start).unwrap();
-            
-                println!("{kw}");
-
-                let params: Split<&str>;
-                let rawkw: &str;
-
-                //separate parameters if any            
-                if kw.find('(').is_some(){
-                    let pstart = kw.find('(').unwrap();
-                    let pend = kw.find(')').unwrap()+1;
-                
-
-                    if kw.get(pstart..pend).is_some(){
-                        params = kw.get(
-                            pstart..pend).unwrap()
-                            .trim_start_matches('(')
-                            .trim_end_matches(')')
-                            .split(",");  
-                    } else {
-                        params = "".split("");
-                    }
-
-                    //get branch
-                    
-                
-                    rawkw = kw.get(..pstart).unwrap();
-
-                }
-
-                else {
-                    params = "".split("");
-                    rawkw = kw.get(..start).unwrap();
-
-                }
-                
-                let test = code.get(
-                    start..end).unwrap()
-                    .trim_start_matches('{')
-                    .trim_end_matches('}')
-                    ;
-
-                //DEBUG: print branch
-                println!("{test}");
-
-                let str: String = test.to_string();
-
-                run_branch(w, rawkw, params, str.clone());
-
-                let str: String = code.get(end..).unwrap().to_string();
-                code = str.clone();    
-            }
-            
-        }
-        else {
-            if code == "".to_string() {return "";}
-
-            let mut rawkw: Split<&str>;
-            let params: Split<&str>;
-
-            if code.find('(').is_some(){
-
-                println!("Branch found: ");
-
-                //separate parameters if any
-                let pstart = code.find('(').unwrap();
-                let pend = code.find(')').unwrap()+1;
-                
-
-                if bkw.get(pstart..pend).is_some(){
-                    params = bkw.get(
-                        pstart..pend).unwrap()
-                        .trim_start_matches('(')
-                        .trim_end_matches(')')
-                        .split(","); 
-                }
-                else {params = "".split("");}
-
-                //get raw keyword
-                if bkw.get(..pstart).is_some(){
-                    rawkw = bkw.get(..pstart).unwrap().split(" ");
-                } else {
-                    rawkw = bkw.split(" ");
-                }
-                
-
-            }
-            else {
-                println!("No branches found in code {code}");
-                rawkw = bkw.split(" ");
-            }
-
-            for key in rawkw.clone(){
-                println!("KEYWORD: {key}");
-            }
-
-            if !bparams.clone().all(|x| x.is_empty()){
-                for p in bparams.clone() {
-                    println!("PARAMETER: {p}");
-                }
-            }
-
-            for key in rawkw.clone(){
-                //match keyword
-                match key{
-                    "exec" => {
-                        for c in code.split(";"){
-                            if !c.is_empty(){
-                                println!("CODE: {c}");
-                                    let cmdkw;
-                                    let cmdp;
-
-
-                                    if c.find('(').is_some(){
-                                        let cmdpstart = c.find("(").unwrap();
-                                        let cmdpend = c.find(")").unwrap()+1;
-                                        if c.get(cmdpstart..cmdpend).is_some(){
-                                            cmdp = c.get(
-                                            cmdpstart..cmdpend).unwrap()
-                                            .trim_start_matches('(')
-                                            .trim_end_matches(')')
-                                            .split(",");
-                                        cmdkw = c.get(..cmdpstart).unwrap();
-
-                                        }
-                                        else {
-                                            cmdp = "".split("");
-                                            cmdkw = c;
-                                        }
-                                         
-                                    }else {
-                                        cmdp = "".split("");
-                                        cmdkw = c;
-                                    }
-
-
-                                    run_branch(world, cmdkw, cmdp, c.to_string());
-                            }
-                        }
-                    },
-                    _ => {
-                        println!("{key} is not a keyword!! (yet?)");
-                    }
-                }
-            }
-        }
-    }
-
-    return "";
-}
 
 fn update_pos(
     mut cmd: Commands,
     mut q: Query<(&NeedsUpdating, Entity, &mut GlobalTransform, &Transform)>,
 ){
     for mut p in q.iter_mut(){
-        let pos = p.3.translation;
-        //println!("{pos}");
         *p.2 = (p.3.compute_affine().into());
         cmd.entity(p.1).remove::<NeedsUpdating>();
     }
@@ -769,7 +555,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ent: new,
                     name: "YIPPEE".to_string(),
                     id:rand::random::<u32>(),
-                    code:"exec{hello(world);}".to_string()
+                    code:"if true{println(\"Hello, world!\");}".to_string()
                 }));
 
                 cmd.entity(new).insert(TestComponent{});
