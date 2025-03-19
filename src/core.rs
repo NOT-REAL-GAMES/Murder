@@ -3,6 +3,7 @@ pub use std::ops::Deref;
 pub use std::time::{Duration, Instant};
 pub use std::str::Split;
 
+pub use std::any::Any;
 pub use bevy::ecs::world::World;
 pub use logos::Logos;
 

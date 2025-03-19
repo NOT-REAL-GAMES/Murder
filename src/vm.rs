@@ -19,7 +19,7 @@ enum Value {
     Object(HashMap<String, Value>),
 }
 
-#[derive(Logos, Debug)]
+#[derive(Logos, Debug, PartialEq)]
 enum Token {
     #[token("false", |_| false)]
     #[token("true", |_| true)]
@@ -54,12 +54,29 @@ enum Token {
     FatArrow,
     #[token("if")]
     KeywordIf,
+    #[token("&&", |_| LGO::AND)]
+    #[token("||", |_| LGO::OR)]
+    LogicOp(LGO),
     #[regex(r#"\"([a-zA-Z,.:;!\[\]\{\} ]*)\""#, |x| x.slice().to_owned(), priority = 1)]
     String(String),
     #[regex(r#"([a-zA-Z]*)"#, |x| x.slice().to_owned(), priority = 1)]
     Text(String),
     #[regex(r"[\s\t\n]*")]
     Whitespace
+}
+
+#[derive(Debug, PartialEq)]
+enum LGO{
+    AND,
+    OR,
+}
+
+pub struct Condition{
+    tokens: String,
+}
+
+pub struct ConditionBranch{
+
 }
 
 pub fn run_vm(
@@ -76,41 +93,62 @@ pub fn run_vm(
         for g in go.iter(wrld){
 
 
-            let mut code = g.code.clone();
+        let mut code = g.code.clone();
+        run_branch(code);
 
-            for t in Token::lexer(code.as_str()){
-                let mut idx = 0;
-                for a in t.iter(){
-                    if let Token::KeywordIf = a {
-                        // get condition spanning spanning from
-                        // whitespace seperator after if keyword
-                        // to the first bracket to appear
-
-                        let mut cond = vec![];
-                        let mut inner_idx = 0;
-                        let t2 = Token::lexer(code.as_str());
-                        for b in t2{
-                            if inner_idx <= idx{
-                                inner_idx += 1;
-                            } else {
-                                if let Ok(Token::BraceOpen) = b {
-                                    break;
-                                } else {
-                                    if let Ok(Token::Whitespace) = b {
-
-                                    } else {
-                                        let fuck = b;
-                                        cond.push(fuck.unwrap());
-                                    }
-                                    inner_idx += 1;
-                                }
-                            }
-                        }
-                        println!("{cond:?}");
-                    }
-                    idx+=1;
-                }
-            }
         }
     }
+}
+
+pub fn run_branch(code:String) -> Box<dyn Any> {
+    let mut t = Token::lexer(code.as_str());
+    let mut idx = 0;
+    while let Some(a) = t.next(){
+        if let Ok(Token::KeywordIf) = a {
+            // get condition spanning spanning from
+            // whitespace seperator after if keyword
+            // to the first bracket to appear
+
+            
+            let mut cond: Vec<Condition> = vec![];
+            let mut v: Vec<String>  = vec![];
+            let mut inner_idx = 0;
+            let mut t2 = Token::lexer(code.as_str());
+            while let Some(b) = t2.next(){
+                if inner_idx <= idx{
+                    inner_idx += 1;
+                } else {
+                    if let Ok(Token::BraceOpen) = b {
+                        cond.push(Condition{tokens:v.concat()});
+                        break;
+                    } else {
+                        if let Ok(Token::Whitespace) = b {
+
+                        } else if let Ok(Token::LogicOp(LGO::AND)) = b {
+
+                        } else {
+                            //FIXME: dumb dumb stupid
+                            let fuck = t2.slice();
+                            v.push(fuck.to_string());
+                        }
+                        inner_idx += 1;
+                    }
+                }
+            }
+            //TODO: finish the actual code that's meant
+            //      to compute the conditions (i.e. the
+            //      other 99% of the interpreter)
+            if (run_branch(cond[0].tokens.clone())).downcast().unwrap() == Box::new(true) {
+                // iterate over every token and count how many levels of braces we're deep
+                // if we're at the outmost layer and find a closing brace, copy code we have
+                // run_branch(/* the code we've accumulated */)
+            }
+        }
+        else if let Ok(Token::Bool(true)) = a {
+            return Box::new(true);
+        }
+        idx+=1;
+    }
+    return Box::new("fuck");
+
 }
