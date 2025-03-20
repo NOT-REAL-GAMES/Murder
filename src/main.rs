@@ -2,7 +2,7 @@
 #![feature(duration_millis_float)]
 #![feature(trivial_bounds)]
 #![feature(iter_advance_by)]
-
+#![feature(string_remove_matches)]
 
 pub mod core;
 use crate::core::*;
