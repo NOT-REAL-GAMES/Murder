@@ -14,7 +14,7 @@ All code shown is presented as proof-of-concept and ***will be*** subject to cha
 
 ---
 
-### Murder is an editor for Bevy, built in Bevy. 
+### Murder is an editor for Bevy, built in ~~Bevy~~ a custom build of Bevy with minute changes. 
 
 It is intended to be made ~~in accordance with the design principles laid out in [the design document](https://bevyengine.github.io/bevy_editor_prototypes/) made by the official Bevy team.~~ Disregard that: the design principles are a bit undecided as is as I prioritize trying different approaches to make a usable editor.
 
@@ -32,7 +32,7 @@ As such, we believe it's in the best interest of all parties involved that it st
 
 ### So is this like the Bevy equivalent to Redot?
 
-This project is (and will forever be) completely dependant on Bevy as it has been from the start. The Murder team commends Godot's decision, and hopes this sets a standard for more game companies to stand for egalitarianism, be it internally or societally.
+This project is (and will forever be) completely dependant on Bevy as it has been from the start. The Murder team commends Godot's decision, and hopes this sets a standard for more game companies to stand for egalitarianism on all fronts.
 
 ### Are you delusional?
 
